@@ -1,0 +1,7 @@
+model,vendor,machine_type,location_type,operated_by,units,bis_certified_IS18663,model_in_production,last_test_date,test_deck_size
+SortPro X200,SortPro Systems,Note sorting machine,Branch,Bank staff,22,Yes,Yes,2026-04-14,1000
+SortPro X150,SortPro Systems,Note sorting machine,Currency chest,Bank staff,9,Yes,Yes,2026-04-16,1000
+CashMate 7,CashMate India,Note sorting machine,Branch,Bank staff,5,No,No (discontinued 2024),2026-04-15,1000
+CashMate 9,CashMate India,Note sorting machine,Branch,Bank staff,2,No,No (discontinued 2025),2026-04-15,1000
+NoteGuard N3,NoteGuard Tech,Note sorting machine,CIT agency hub,SecureCash Logistics (agent),6,Yes,Yes,Not recorded,Not recorded
+AuthScan A1,AuthScan Devices,Note authentication machine,Branch,Bank staff,4,Yes,Yes,2026-04-17,1000

@@ -1,0 +1,28 @@
+obligation_id,regulation,clause,obligation_summary,applicability,control_id,coverage,design_assessment,operating_assessment,evidence_id,gap_id
+OB-01,REG-KYC v2,3.1,Board-approved Customer Acceptance Policy reviewed annually,Applicable,CTL-01,Covered,Adequate,Effective,EVD-01,
+OB-02,REG-KYC v2,3.2,No anonymous or fictitious accounts,Applicable,CTL-01,Covered,Adequate,Effective,EVD-01,
+OB-03,REG-KYC v2,4.1,Categorise customers as Low/Medium/High risk,Applicable,CTL-02,Covered,Adequate,Insufficient evidence,,
+OB-04,REG-KYC v2,4.2,Review risk categorisation at least every 6 months,Applicable,CTL-02,Partial,Inadequate (annual vs 6-monthly),Insufficient evidence,,G-01
+OB-05,REG-KYC v2,5.1,Verify identity and address with OVD before account opening,Applicable,CTL-03;CTL-17,Covered,Adequate,Insufficient evidence,,
+OB-06,REG-KYC v2,5.3,Identify beneficial owners holding more than 10%,Applicable,CTL-04,Partial,Inadequate (25% threshold vs 10%),Insufficient evidence,,G-02
+OB-07,REG-KYC v1 only,5.4,Obtain physical self-attested OVD copy within 30 days of e-KYC (DELETED in v2),Applicable in v1; removed in v2,CTL-03,Covered (v1),Adequate,Insufficient evidence,,
+OB-08,REG-KYC v2,5A.1,"V-CIP sessions need liveness check, India geo-location, and specifically trained official",Applicable,CTL-17,Partial,"Inadequate (no liveness, no geo-location, generic vendor training)",Insufficient evidence,,G-03
+OB-09,REG-KYC v2,5A.2,V-CIP recordings stored in India and preserved per Section 9,Applicable,CTL-18,Insufficient information,Storage location not stated,Insufficient evidence,,G-04
+OB-10,REG-KYC v2,6.1,"Periodic KYC update every 2/8/10 years (High/Medium/Low)",Applicable,CTL-05,Partial,Inadequate (3 years for High risk vs 2),Partially effective (18.4% High risk overdue),EVD-02,G-05
+OB-11,REG-KYC v2,7.1,Monitor transactions on an ongoing basis,Applicable,CTL-06,Covered,Adequate,Insufficient evidence,,
+OB-12,REG-KYC v2,7.2,Dispose of monitoring alerts within 30 days,Applicable,CTL-06,Covered,Adequate,Partially effective (82.0% within 30 days),EVD-03,G-06
+OB-13,REG-KYC v2,8.1,File CTR by the 7th of the following month,Applicable,CTL-07,Partial,Inadequate (15th vs 7th),Insufficient evidence,,G-07
+OB-14,REG-KYC v2,8.2,File STR within 7 working days of suspicion conclusion,Applicable,CTL-08,Covered,Adequate,Partially effective (2 of 12 filed late),EVD-04,G-08
+OB-15,REG-KYC v2,9.1,Retain transaction and identity records at least 5 years after closure,Applicable,CTL-09,Covered,Adequate (8 years),Insufficient evidence,,
+OB-16,REG-KYC v2,10.1,Appoint Principal Officer and Designated Director; inform FIU within 15 days,Applicable,CTL-10,Covered,Adequate,Insufficient evidence,,
+OB-17,REG-KYC v2,11.1,Annual KYC/AML staff training with attendance records,Applicable,NONE,Missing,No control,Not applicable,,G-09
+OB-18,REG-KYC v2,2.2,Apply stricter home/host rules to overseas branches,Not applicable (POL-01 1.2: no overseas branches),NONE,Not applicable,Not applicable,Not applicable,,
+DP-01,REG-DPC,3.1,Collect only necessary customer personal data,Applicable,NONE,Missing,No control,Not applicable,,G-10
+DP-02,REG-DPC,3.2,Do not retain customer personal data more than 3 years after closure,Applicable,CTL-09;CTL-18,Non-compliant (conflict),Bank retains 8 years; see CF-01,Not applicable,,G-11
+DP-03,REG-DPC,4.1,Encrypt customer data at rest (AES-256) and in transit (TLS 1.2+),Applicable,CTL-11,Covered,Adequate,Insufficient evidence,,
+DP-04,REG-DPC,5.1,Review privileged access at least quarterly,Applicable,CTL-12,Partial,Inadequate (annual vs quarterly),Ineffective (no review for 14 months),EVD-05,G-12
+DP-05,REG-DPC,6.1,Report cyber incidents to CBA within 6 hours,Applicable,CTL-13,Partial,Inadequate (24 hours vs 6),Insufficient evidence,,G-13
+DP-06,REG-DPC,7.1,MFA for all remote access and all privileged access,Applicable,CTL-14,Partial,Inadequate (privileged on-prem access has no MFA),Insufficient evidence,,G-14
+DP-07,REG-DPC,8.1,Board-approved Information Security Policy reviewed annually,Applicable,CTL-15,Covered,Adequate,Effective,EVD-01,
+DP-08,REG-DPC,9.1,Retain security logs at least 180 days,Applicable,CTL-16,Partial,Inadequate (90 days vs 180),Insufficient evidence,,G-15
+DP-09,REG-DPC,10.1,Third-party data stored only in India and vendor audited annually,Applicable,CTL-18,Insufficient information,Location and audit not stated,Insufficient evidence,,G-16

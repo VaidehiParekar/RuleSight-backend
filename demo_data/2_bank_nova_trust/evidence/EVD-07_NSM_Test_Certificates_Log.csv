@@ -1,0 +1,4 @@
+test_cycle,test_period,machines_tested,machines_in_scope,test_deck_size,machines_recalibrated,certificate_signed_by
+Oct 2025,Oct-Dec 2025,42,42,1000,3,Branch Manager
+Apr 2026,Apr-Jun 2026,42,42,1000,2,Branch Manager
+(no test),Jul-Sep 2026,0,42,0,0,Not applicable

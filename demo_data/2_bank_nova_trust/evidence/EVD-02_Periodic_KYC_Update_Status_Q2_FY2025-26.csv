@@ -1,0 +1,4 @@
+report_period,risk_category,bank_cycle_years,rbi_required_years,accounts_due_in_period,completed_on_time,overdue,overdue_pct,accounts_high_risk_2_to_3_years_old_not_on_due_list
+Jul-Sep 2025,High,3,2,1240,1012,228,18.4,2105
+Jul-Sep 2025,Medium,8,8,3850,3790,60,1.6,0
+Jul-Sep 2025,Low,10,10,9120,9083,37,0.4,0

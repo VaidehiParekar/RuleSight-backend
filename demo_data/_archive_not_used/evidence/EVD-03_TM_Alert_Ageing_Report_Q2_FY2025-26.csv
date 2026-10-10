@@ -1,0 +1,5 @@
+report_period,alerts_generated,closed_within_30_days,closed_31_to_60_days,closed_after_60_days,open_older_than_30_days,pct_within_30_days
+Jul 2025,1480,1236,168,52,24,83.5
+Aug 2025,1555,1268,207,61,19,81.5
+Sep 2025,1585,1286,235,40,24,81.1
+Q2 total,4620,3790,610,153,67,82.0
