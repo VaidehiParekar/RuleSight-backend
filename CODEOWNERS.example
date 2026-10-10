@@ -1,0 +1,16 @@
+# CODEOWNERS template. Copy to `.github/CODEOWNERS` and replace the placeholder teams.
+#
+# Do not add people automatically. Ownership is a team decision: agree the owners first, then
+# create the teams on GitHub (Settings > Teams) and reference them here with @org/team-slug.
+# Branch protection can then require review from code owners on `main`.
+
+# Default owner for anything not matched below.
+* @your-org/rulesight-maintainers
+
+/backend/            @your-org/backend
+/frontend/           @your-org/frontend
+/database/           @your-org/backend
+/docs/               @your-org/rulesight-maintainers
+/.github/            @your-org/rulesight-maintainers
+/docker-compose.yml  @your-org/rulesight-maintainers
+/SECURITY.md         @your-org/rulesight-maintainers

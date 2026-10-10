@@ -1,0 +1,20 @@
+# Normalise text to LF in the repository; Git converts to the platform's line endings on checkout
+# where needed. Windows contributors should keep core.autocrlf at its default.
+* text=auto eol=lf
+
+# Windows PowerShell scripts must keep CRLF so they run reliably in Windows PowerShell 5.1.
+*.ps1 text eol=crlf
+
+# Binary assets: never diff or normalise.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.pdf binary
+*.woff binary
+*.woff2 binary
+
+# Lockfiles are generated: keep them out of language statistics and merge diffs.
+package-lock.json -diff linguist-generated
+uv.lock -diff linguist-generated

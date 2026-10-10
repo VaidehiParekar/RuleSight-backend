@@ -1,0 +1,47 @@
+# ---- Secrets and local environment: never commit real values -------------------------------
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+secrets/
+
+# ---- Generated dependency and build output -------------------------------------------------
+node_modules/
+frontend/dist/
+frontend/coverage/
+frontend/*.tsbuildinfo
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+
+# ---- Tool caches ------------------------------------------------------------------------------
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.vite/
+.eslintcache
+
+# ---- Editors and OS files -----------------------------------------------------------------------
+.idea/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+*.swp
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ---- Logs and local data --------------------------------------------------------------------------
+*.log
+npm-debug.log*
+pnpm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+data/local/
+uploads/
+
+# --- Miscellaneous -------------------------------------------------------------------------------
+.claude/settings.local.json
