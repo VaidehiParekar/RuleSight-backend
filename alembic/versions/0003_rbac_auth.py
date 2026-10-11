@@ -18,6 +18,17 @@ depends_on: str | Sequence[str] | None = None
 
 def upgrade() -> None:
     op.execute("""
+    DO $$
+    BEGIN
+        IF EXISTS (
+            SELECT 1 FROM information_schema.tables WHERE table_name = 'users'
+        ) AND NOT EXISTS (
+            SELECT 1 FROM information_schema.columns WHERE table_name = 'users' AND column_name = 'role'
+        ) THEN
+            DROP TABLE users CASCADE;
+        END IF;
+    END $$;
+
     CREATE TABLE IF NOT EXISTS users (
         id VARCHAR(64) PRIMARY KEY,
         email VARCHAR(255) UNIQUE NOT NULL,
