@@ -73,9 +73,13 @@ async def upload_document(
     with open(file_path, "wb") as f:
         f.write(content)
 
+    version_label = version_label.strip() if (version_label and version_label.strip()) else "Unversioned"
+    supersedes_id = supersedes_id.strip() if (supersedes_id and supersedes_id.strip()) else None
+    regulator = regulator.strip() if (regulator and regulator.strip()) else None
+
     is_synthetic = doc_type != "regulation"
 
-    with session.begin():
+    try:
         # Insert document
         insert_doc_query = text("""
             INSERT INTO documents (
@@ -161,6 +165,10 @@ async def upload_document(
             before=None,
             after={"status": "ready", "file": file_name},
         )
+        session.commit()
+    except Exception:
+        session.rollback()
+        raise
 
     saved_doc = get_document_sql(session, doc_id)
     if not saved_doc:

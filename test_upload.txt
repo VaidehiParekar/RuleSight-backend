@@ -1,0 +1,4 @@
+Clause 1.0 General Provisions
+Every entity shall retain logs.
+Clause 2.0 Security
+Encryption required.

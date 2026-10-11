@@ -318,6 +318,20 @@ def seed_database() -> None:
             """)
         )
 
+        # 10. Agent Runs
+        conn.execute(
+            text("""
+                INSERT INTO agent_runs (
+                    id, run_id, started_at, trigger, cache_hits, status, nodes, created_at
+                ) VALUES
+                ('run-7f3a', '7f3a', '2026-10-11T13:59:21+05:30',
+                 'Upload of NSM Master Direction (supersedes v1)', 0, 'done',
+                 '[{"node": "extract_obligations", "status": "done", "offset_ms": 0, "duration_ms": 11500, "llm_calls": 3, "input_tokens": 8200, "output_tokens": 1420, "note": "Extracted obligations from KYC MD and NSM texts with verbatim quotes", "conditional": false}, {"node": "check_applicability", "status": "done", "offset_ms": 11500, "duration_ms": 2200, "llm_calls": 1, "input_tokens": 2800, "output_tokens": 450, "note": "Evaluated scope against Scheduled Commercial Bank profile", "conditional": false}, {"node": "extract_controls", "status": "done", "offset_ms": 13700, "duration_ms": 3800, "llm_calls": 2, "input_tokens": 5100, "output_tokens": 980, "note": "Ingested 10 controls from RCM CSV and internal policies", "conditional": false}, {"node": "map_candidates", "status": "done", "offset_ms": 17500, "duration_ms": 9400, "llm_calls": 5, "input_tokens": 12400, "output_tokens": 2100, "note": "Traversed NetworkX graph across shared topics and evaluated coverage", "conditional": false}, {"node": "critic_verify", "status": "done", "offset_ms": 26900, "duration_ms": 1600, "llm_calls": 0, "input_tokens": 0, "output_tokens": 0, "note": "Code assertion verified 100% of quotes are exact substrings in source text", "conditional": false}, {"node": "assess_evidence", "status": "done", "offset_ms": 28500, "duration_ms": 6200, "llm_calls": 4, "input_tokens": 9800, "output_tokens": 1650, "note": "Parsed EVD-02, EVD-06, EVD-07 audit tables and flagged delinquency cells", "conditional": false}, {"node": "detect_gaps", "status": "done", "offset_ms": 34700, "duration_ms": 400, "llm_calls": 0, "input_tokens": 0, "output_tokens": 0, "note": "Evaluated 5-category deterministic decision tree across all obligations", "conditional": false}, {"node": "score_risk", "status": "done", "offset_ms": 35100, "duration_ms": 200, "llm_calls": 0, "input_tokens": 0, "output_tokens": 0, "note": "Calculated Criticality * Severity * Urgency into P1/P2/P3 priority bands", "conditional": false}, {"node": "draft_remediation", "status": "done", "offset_ms": 35300, "duration_ms": 4600, "llm_calls": 2, "input_tokens": 6400, "output_tokens": 1100, "note": "Drafted corrective action plans with SLA targets", "conditional": false}, {"node": "diff_versions", "status": "done", "offset_ms": 39900, "duration_ms": 3800, "llm_calls": 2, "input_tokens": 7200, "output_tokens": 1250, "note": "Change intelligence: NSM v1 to v2 comparison & Annex circular audit", "conditional": true}, {"node": "impact_analysis", "status": "done", "offset_ms": 43700, "duration_ms": 1800, "llm_calls": 1, "input_tokens": 3100, "output_tokens": 580, "note": "Cascaded changed clauses through graph to flag NG-03 as P1 gap", "conditional": true}]'::jsonb,
+                 '2026-10-11T13:59:21+05:30')
+                ON CONFLICT (id) DO NOTHING;
+            """)
+        )
+
         print("Successfully seeded all benchmark demo tables!")
 
 

@@ -45,6 +45,8 @@ def list_documents_sql(session: Session) -> list[SourceDocument]:
     for r in rows:
         d = dict(r)
         d["created_at"] = d["created_at"].isoformat() if isinstance(d["created_at"], datetime) else str(d["created_at"])
+        d["sha256"] = d.get("sha256") or ""
+        d["reference"] = d.get("reference") or ""
         results.append(SourceDocument.model_validate(d))
     return results
 
@@ -62,6 +64,8 @@ def get_document_sql(session: Session, doc_id: str) -> SourceDocument | None:
         return None
     d = dict(row)
     d["created_at"] = d["created_at"].isoformat() if isinstance(d["created_at"], datetime) else str(d["created_at"])
+    d["sha256"] = d.get("sha256") or ""
+    d["reference"] = d.get("reference") or ""
     return SourceDocument.model_validate(d)
 
 
@@ -91,21 +95,20 @@ def list_obligations_sql(
     applicability: str | None = None,
     review_status: str | None = None,
 ) -> list[Obligation]:
-    query = text("""
-        SELECT * FROM obligations
-        WHERE (:doc_id IS NULL OR document_id = :doc_id)
-          AND (:applicability IS NULL OR applicability = :applicability)
-          AND (:review_status IS NULL OR review_status = :review_status)
-        ORDER BY code ASC
-    """)
-    rows = session.execute(
-        query,
-        {
-            "doc_id": document_id,
-            "applicability": applicability,
-            "review_status": review_status,
-        },
-    ).mappings().all()
+    clauses = []
+    params: dict[str, Any] = {}
+    if document_id:
+        clauses.append("document_id = :doc_id")
+        params["doc_id"] = document_id
+    if applicability:
+        clauses.append("applicability = :applicability")
+        params["applicability"] = applicability
+    if review_status:
+        clauses.append("review_status = :review_status")
+        params["review_status"] = review_status
+    where_sql = ("WHERE " + " AND ".join(clauses)) if clauses else ""
+    query = text(f"SELECT * FROM obligations {where_sql} ORDER BY code ASC")
+    rows = session.execute(query, params).mappings().all()
     return [Obligation.model_validate(dict(r)) for r in rows]
 
 
@@ -157,12 +160,12 @@ def get_control_sql(session: Session, control_id: str) -> Control | None:
 # ---- Mappings ----------------------------------------------------------------------------------
 
 def list_mappings_sql(session: Session, obligation_id: str | None = None) -> list[Mapping]:
-    query = text("""
-        SELECT * FROM mappings
-        WHERE (:ob_id IS NULL OR obligation_id = :ob_id)
-        ORDER BY id ASC
-    """)
-    rows = session.execute(query, {"ob_id": obligation_id}).mappings().all()
+    if obligation_id:
+        query = text("SELECT * FROM mappings WHERE obligation_id = :ob_id ORDER BY id ASC")
+        rows = session.execute(query, {"ob_id": obligation_id}).mappings().all()
+    else:
+        query = text("SELECT * FROM mappings ORDER BY id ASC")
+        rows = session.execute(query).mappings().all()
     results: list[Mapping] = []
     for r in rows:
         d = dict(r)
@@ -196,13 +199,17 @@ def list_gaps_sql(
     status: str | None = None,
     priority: str | None = None,
 ) -> list[Gap]:
-    query = text("""
-        SELECT * FROM gaps
-        WHERE (:status IS NULL OR status = :status)
-          AND (:priority IS NULL OR priority = :priority)
-        ORDER BY risk_score DESC
-    """)
-    rows = session.execute(query, {"status": status, "priority": priority}).mappings().all()
+    clauses = []
+    params: dict[str, Any] = {}
+    if status:
+        clauses.append("status = :status")
+        params["status"] = status
+    if priority:
+        clauses.append("priority = :priority")
+        params["priority"] = priority
+    where_sql = ("WHERE " + " AND ".join(clauses)) if clauses else ""
+    query = text(f"SELECT * FROM gaps {where_sql} ORDER BY risk_score DESC")
+    rows = session.execute(query, params).mappings().all()
     results: list[Gap] = []
     for r in rows:
         d = dict(r)
@@ -316,22 +323,18 @@ def list_audit_sql(
     actor: str | None = None,
     limit: int = 100,
 ) -> list[AuditEntry]:
-    query = text("""
-        SELECT * FROM audit_log
-        WHERE (:entity_code IS NULL OR entity_code = :entity_code OR entity_code LIKE :entity_like)
-          AND (:actor IS NULL OR actor = :actor)
-        ORDER BY at DESC
-        LIMIT :limit
-    """)
-    rows = session.execute(
-        query,
-        {
-            "entity_code": entity_code,
-            "entity_like": f"{entity_code}%" if entity_code else None,
-            "actor": actor,
-            "limit": limit,
-        },
-    ).mappings().all()
+    clauses = []
+    params: dict[str, Any] = {"limit": limit}
+    if entity_code:
+        clauses.append("(entity_code = :entity_code OR entity_code LIKE :entity_like)")
+        params["entity_code"] = entity_code
+        params["entity_like"] = f"{entity_code}%"
+    if actor:
+        clauses.append("actor = :actor")
+        params["actor"] = actor
+    where_sql = ("WHERE " + " AND ".join(clauses)) if clauses else ""
+    query = text(f"SELECT * FROM audit_log {where_sql} ORDER BY at DESC LIMIT :limit")
+    rows = session.execute(query, params).mappings().all()
     results: list[AuditEntry] = []
     for r in rows:
         d = dict(r)

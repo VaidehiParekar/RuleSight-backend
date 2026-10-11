@@ -58,7 +58,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         allow_origins=[settings.frontend_origin],
         allow_credentials=False,
         allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
-        allow_headers=["Content-Type", "X-Request-ID"],
+        allow_headers=["Content-Type", "X-Request-ID", "X-Actor"],
         expose_headers=["X-Request-ID"],
     )
     app.add_middleware(RequestContextMiddleware)
