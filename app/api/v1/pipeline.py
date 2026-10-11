@@ -5,11 +5,12 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
-from app.core.actor import ActorInfo, get_actor, record_audit
+from app.core.actor import ActorInfo, record_audit
+from app.core.deps import get_current_actor, require_permission
 from app.core.kg import rebuild_kg
 from app.db.queries import get_run_sql, list_runs_sql
 from app.db.session import get_session
-from app.schemas.domain import AgentRun, RunNode
+from app.schemas.domain import AgentRun, RunNode, UserResponse
 
 router = APIRouter(prefix="/pipeline", tags=["pipeline"])
 
@@ -154,7 +155,8 @@ def get_run(id: str, session: Session = Depends(get_session)) -> AgentRun:
 
 @router.post("/run", response_model=AgentRun)
 def trigger_pipeline_run(
-    actor: ActorInfo = Depends(get_actor),
+    _user: UserResponse = Depends(require_permission("pipeline:run")),
+    actor: ActorInfo = Depends(get_current_actor),
     session: Session = Depends(get_session),
 ) -> AgentRun:
     """Executes or records a new pipeline run."""

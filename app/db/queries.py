@@ -662,3 +662,52 @@ def get_run_sql(session: Session, run_id: str) -> AgentRun | None:
     if isinstance(d.get("nodes"), str):
         d["nodes"] = json.loads(d["nodes"])
     return AgentRun.model_validate(d)
+
+
+# ---- Users & RBAC ------------------------------------------------------------------------------
+
+def get_user_by_email_sql(session: Session, email: str) -> dict[str, Any] | None:
+    query = text("SELECT * FROM users WHERE LOWER(email) = LOWER(:email) AND is_active = TRUE LIMIT 1")
+    row = session.execute(query, {"email": email.strip()}).mappings().first()
+    if not row:
+        return None
+    d = dict(row)
+    if isinstance(d.get("created_at"), datetime):
+        d["created_at"] = d["created_at"].isoformat()
+    if isinstance(d.get("last_login_at"), datetime):
+        d["last_login_at"] = d["last_login_at"].isoformat()
+    return d
+
+
+def get_user_by_id_sql(session: Session, user_id: str) -> dict[str, Any] | None:
+    query = text("SELECT * FROM users WHERE id = :id AND is_active = TRUE LIMIT 1")
+    row = session.execute(query, {"id": user_id}).mappings().first()
+    if not row:
+        return None
+    d = dict(row)
+    if isinstance(d.get("created_at"), datetime):
+        d["created_at"] = d["created_at"].isoformat()
+    if isinstance(d.get("last_login_at"), datetime):
+        d["last_login_at"] = d["last_login_at"].isoformat()
+    return d
+
+
+def list_users_sql(session: Session) -> list[dict[str, Any]]:
+    query = text("SELECT id, email, full_name, role, initials, is_active, created_at, last_login_at FROM users ORDER BY full_name ASC")
+    rows = session.execute(query).mappings().all()
+    results: list[dict[str, Any]] = []
+    for r in rows:
+        d = dict(r)
+        if isinstance(d.get("created_at"), datetime):
+            d["created_at"] = d["created_at"].isoformat()
+        if isinstance(d.get("last_login_at"), datetime):
+            d["last_login_at"] = d["last_login_at"].isoformat()
+        results.append(d)
+    return results
+
+
+def update_user_last_login_sql(session: Session, user_id: str) -> None:
+    query = text("UPDATE users SET last_login_at = now() WHERE id = :id")
+    session.execute(query, {"id": user_id})
+    session.commit()
+

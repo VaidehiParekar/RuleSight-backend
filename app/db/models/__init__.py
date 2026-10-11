@@ -15,6 +15,7 @@ from app.db.models.missing_circular import MissingCircular
 from app.db.models.obligation import Obligation
 from app.db.models.remediation import Remediation
 from app.db.models.run import AgentRun
+from app.db.models.user import User
 
 __all__ = [
     "Base",
@@ -32,4 +33,5 @@ __all__ = [
     "AuditLog",
     "AgentRun",
     "LLMCache",
+    "User",
 ]

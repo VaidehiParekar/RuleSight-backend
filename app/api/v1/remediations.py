@@ -2,7 +2,9 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
-from app.core.actor import ActorInfo, get_actor, record_audit
+from app.core.actor import ActorInfo, record_audit
+from app.core.auth import has_permission
+from app.core.deps import get_current_actor, get_current_user
 from app.db.queries import (
     get_gap_sql,
     get_remediation_sql,
@@ -10,7 +12,7 @@ from app.db.queries import (
     update_remediation_sql,
 )
 from app.db.session import get_session
-from app.schemas.domain import Remediation, RemediationStatus
+from app.schemas.domain import Remediation, RemediationStatus, UserResponse
 
 router = APIRouter(prefix="/remediations", tags=["remediations"])
 
@@ -32,10 +34,18 @@ def list_remediations(session: Session = Depends(get_session)) -> list[Remediati
 def update_remediation(
     id: str,
     input_data: RemediationUpdateInput,
-    actor: ActorInfo = Depends(get_actor),
+    user: UserResponse = Depends(get_current_user),
+    actor: ActorInfo = Depends(get_current_actor),
     session: Session = Depends(get_session),
 ) -> Remediation:
     """Updates remediation plan (e.g. approved by Officer) and records an audit log entry."""
+    if input_data.status in ("approved", "verified"):
+        if not has_permission(user.role, "remediations:approve"):
+            raise HTTPException(
+                status_code=403,
+                detail="Approval authority required: Only Compliance Officers can approve or verify remediations.",
+            )
+
     with session.begin():
         before_rem = get_remediation_sql(session, id)
         if not before_rem:

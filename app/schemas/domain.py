@@ -300,3 +300,30 @@ class EvalReport(BaseModel):
     method: str = ""
     metrics: list[EvalMetric]
 
+
+RoleType = Literal["admin", "compliance_officer", "compliance_analyst", "auditor"]
+
+
+class UserResponse(BaseModel):
+    id: str
+    email: str
+    full_name: str
+    role: str
+    initials: str
+    is_active: bool = True
+    created_at: str | None = None
+    last_login_at: str | None = None
+    permissions: list[str] = Field(default_factory=list)
+
+
+class LoginRequest(BaseModel):
+    email: str
+    password: str
+
+
+class AuthResponse(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+    user: UserResponse
+
+
