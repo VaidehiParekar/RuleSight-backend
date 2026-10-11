@@ -9,6 +9,7 @@ Create Date: 2026-10-10
 from collections.abc import Sequence
 
 from alembic import op
+import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision: str = "0001_enable_pgvector"
@@ -18,11 +19,27 @@ depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
-    # Required before any vector(n) column exists. The extension is created here, not by hand.
-    op.execute("CREATE EXTENSION IF NOT EXISTS vector")
+    # Check if the vector extension binary is installed on the PostgreSQL server
+    conn = op.get_bind()
+    has_vector = conn.execute(
+        sa.text("SELECT 1 FROM pg_available_extensions WHERE name = 'vector'")
+    ).scalar()
+
+    if has_vector:
+        op.execute("CREATE EXTENSION IF NOT EXISTS vector")
+    else:
+        # Gracefully handle standard local PostgreSQL installations that do not have pgvector binaries
+        print(
+            "Notice: pgvector extension binary is not installed in this PostgreSQL server. "
+            "Skipping CREATE EXTENSION vector. Relational domain tables will operate normally."
+        )
 
 
 def downgrade() -> None:
-    # Safe only while no table depends on the vector type. Later migrations must be
-    # downgraded first.
-    op.execute("DROP EXTENSION IF EXISTS vector")
+    conn = op.get_bind()
+    has_vector = conn.execute(
+        sa.text("SELECT 1 FROM pg_extension WHERE extname = 'vector'")
+    ).scalar()
+
+    if has_vector:
+        op.execute("DROP EXTENSION IF EXISTS vector")
