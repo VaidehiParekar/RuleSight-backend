@@ -9,10 +9,9 @@ from app.core.kg import (
     rebuild_kg,
 )
 from app.core.rules import (
-    CRITICALITY_MAP,
-    SEVERITY_MAP,
     calculate_risk,
     evaluate_gap_type,
+    risk_rules,
 )
 
 __all__ = [
@@ -22,8 +21,7 @@ __all__ = [
     "kg_impact",
     "kg_orphans",
     "rebuild_kg",
-    "CRITICALITY_MAP",
-    "SEVERITY_MAP",
     "calculate_risk",
     "evaluate_gap_type",
+    "risk_rules",
 ]

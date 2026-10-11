@@ -29,8 +29,11 @@ from app.core.rules import calculate_risk, evaluate_gap_type
 from app.integrations.llm.base import LLMProviderError, StructuredLLMProvider, usage_of
 from app.integrations.llm.gemini import build_gemini_provider
 from app.schemas.domain import AgentRun, Applicability, Coverage, DesignAssessment
+from app.services.change_runner import CHANGE_NODE, run_change_branch
+from app.services.evaluation import run_evaluation
 from app.services.regulation_text import (
     Paragraph,
+    batch_by_size,
     extract_text,
     select_paragraphs,
     split_paragraphs,
@@ -52,6 +55,8 @@ from app.workflows.steps import (
 logger = logging.getLogger(__name__)
 
 NODES = ("extract_obligations", "map_controls", "draft_remediation")
+# Conditional branch: listed only when a document in the run supersedes another.
+CONDITIONAL_NODES = (CHANGE_NODE,)
 
 # Strongest coverage first: an obligation is as covered as its best control.
 _COVERAGE_RANK: dict[str, int] = {"covered": 3, "partial": 2, "insufficient_info": 1, "none": 0}
@@ -124,6 +129,8 @@ def build_provider(settings: Settings) -> StructuredLLMProvider:
         cache_dir=settings.llm_cache_dir,
         transport_attempts=settings.llm_transport_attempts,
         backoff_seconds=settings.llm_retry_backoff_seconds,
+        timeout_seconds=settings.llm_timeout_seconds,
+        min_interval_seconds=settings.llm_min_interval_seconds,
     )
 
 
@@ -169,9 +176,9 @@ def start_run(
             "input_tokens": 0,
             "output_tokens": 0,
             "note": None,
-            "conditional": False,
+            "conditional": node in CONDITIONAL_NODES,
         }
-        for node in NODES
+        for node in _run_nodes(_expects_change(session, request))
     ]
     scope = f"document {request.document_id}" if request.document_id else "new regulations"
     row = (
@@ -202,6 +209,33 @@ def start_run(
     return _row_to_run(row)
 
 
+def _run_nodes(with_change: bool) -> tuple[str, ...]:
+    return NODES + CONDITIONAL_NODES if with_change else NODES
+
+
+def _expects_change(session: Session, request: RunRequest) -> bool:
+    """True when a document this run will read supersedes another (the change branch runs)."""
+    if request.document_id:
+        row = session.execute(
+            text("""
+                SELECT 1 FROM documents
+                WHERE id = :id AND doc_type = 'regulation' AND supersedes_id IS NOT NULL
+            """),
+            {"id": request.document_id},
+        ).first()
+    else:
+        row = session.execute(
+            text("""
+                SELECT 1 FROM documents d
+                WHERE d.doc_type = 'regulation' AND d.status <> 'superseded'
+                  AND d.supersedes_id IS NOT NULL
+                  AND NOT EXISTS (SELECT 1 FROM obligations o WHERE o.document_id = d.id)
+                LIMIT 1
+            """)
+        ).first()
+    return row is not None
+
+
 # ---------------------------------------------------------------- inputs
 
 
@@ -211,13 +245,14 @@ class _Document:
     title: str
     regulator: str | None
     file_path: str | None
+    supersedes_id: str | None = None
 
 
 def _documents(session: Session, request: RunRequest) -> list[_Document]:
     if request.document_id:
         rows = session.execute(
             text("""
-                SELECT id, title, regulator, file_path FROM documents
+                SELECT id, title, regulator, file_path, supersedes_id FROM documents
                 WHERE id = :id AND doc_type = 'regulation'
             """),
             {"id": request.document_id},
@@ -225,7 +260,8 @@ def _documents(session: Session, request: RunRequest) -> list[_Document]:
     else:
         rows = session.execute(
             text("""
-                SELECT d.id, d.title, d.regulator, d.file_path FROM documents d
+                SELECT d.id, d.title, d.regulator, d.file_path, d.supersedes_id
+                FROM documents d
                 WHERE d.doc_type = 'regulation' AND d.status <> 'superseded'
                   AND NOT EXISTS (SELECT 1 FROM obligations o WHERE o.document_id = d.id)
                 ORDER BY d.created_at
@@ -658,9 +694,12 @@ def _node_rows(
     run_started: datetime,
     failed: str | None,
     idle_note: str = "Skipped: nothing to do at this step.",
+    *,
+    with_change: bool = False,
 ) -> list[dict[str, Any]]:
     rows: list[dict[str, Any]] = []
-    for node in NODES:
+    for node in _run_nodes(with_change or CHANGE_NODE in totals.records):
+        conditional = node in CONDITIONAL_NODES
         records = totals.records.get(node, [])
         notes = totals.notes.get(node, [])
         if records:
@@ -678,7 +717,7 @@ def _node_rows(
                     "input_tokens": sum(r.usage.input_tokens for r in records),
                     "output_tokens": sum(r.usage.output_tokens for r in records),
                     "note": "; ".join(errors or notes) or None,
-                    "conditional": False,
+                    "conditional": conditional,
                 }
             )
         else:
@@ -692,7 +731,7 @@ def _node_rows(
                     "input_tokens": 0,
                     "output_tokens": 0,
                     "note": failed or idle_note,
-                    "conditional": False,
+                    "conditional": conditional,
                 }
             )
     return rows
@@ -716,6 +755,38 @@ def _finish(
         )
 
 
+def _run_change(
+    session_factory: sessionmaker[Session],
+    settings: Settings,
+    provider: StructuredLLMProvider,
+    document: _Document,
+    actor: ActorInfo,
+    totals: _Totals,
+) -> int:
+    """Runs the change branch for one superseding document in its own transaction. A failure
+    is recorded on the node and rolled back; it never stops the rest of the run."""
+    started = datetime.now(UTC)
+    try:
+        with session_factory() as session, session.begin():
+            outcome = run_change_branch(session, settings, provider, document.id, actor)
+    except Exception as exc:
+        logger.exception("change detection failed", extra={"document_id": document.id})
+        totals.record(
+            NodeRecord(
+                node=CHANGE_NODE,
+                status="failed",
+                started_at=started,
+                ended_at=datetime.now(UTC),
+                llm_calls=0,
+                error=f"Change detection stopped: {type(exc).__name__}. See the server log.",
+            ),
+            f"{document.title[:40]}: failed",
+        )
+        return 0
+    totals.record(outcome.record, outcome.note)
+    return outcome.counts.get("changes", 0)
+
+
 def execute_run(
     session_factory: sessionmaker[Session],
     settings: Settings,
@@ -728,11 +799,13 @@ def execute_run(
     run_started = datetime.now(UTC)
     totals = _Totals()
     provider: StructuredLLMProvider | None = None
+    superseding: list[_Document] = []
     try:
         provider = provider_factory(settings)
         with session_factory() as session:
             documents = _documents(session, request)
             controls, controls_by_code = _controls(session)
+        superseding = [d for d in documents if d.supersedes_id]
         stored: dict[str, int] = {"obligations": 0, "mappings": 0, "gaps": 0, "remediations": 0}
         for document in documents:
             with session_factory() as session, session.begin():
@@ -746,17 +819,26 @@ def execute_run(
                 )
                 if not chosen:
                     continue
-                result = run_pipeline(
-                    provider,
-                    clauses=[ClauseInput(clause_ref=p.ref, text=p.text) for p in chosen],
-                    controls=controls,
-                    candidate_finder=keyword_candidates,
-                    gap_builder=make_gap_builder(controls_by_code),
-                )
-                totals.add(result, document.title[:40])
-                counts = _persist(session, document, result, controls_by_code)
-                for key, value in counts.items():
-                    stored[key] += value
+                for batch in batch_by_size(chosen, settings.pipeline_batch_chars):
+                    result = run_pipeline(
+                        provider,
+                        clauses=[ClauseInput(clause_ref=p.ref, text=p.text) for p in batch],
+                        controls=controls,
+                        candidate_finder=keyword_candidates,
+                        gap_builder=make_gap_builder(controls_by_code),
+                        institution=settings.institution_profile,
+                    )
+                    totals.add(result, document.title[:40])
+                    counts = _persist(session, document, result, controls_by_code)
+                    for key, value in counts.items():
+                        stored[key] += value
+
+        # Change branch: after the document's own pipeline, so its obligations exist for the
+        # impact analysis, and before remediation drafting, so change-driven gaps get drafts.
+        for document in superseding:
+            stored["changes"] = stored.get("changes", 0) + _run_change(
+                session_factory, settings, provider, document, actor, totals
+            )
 
         with session_factory() as session, session.begin():
             stored["remediations"] += _draft_missing_remediations(
@@ -773,6 +855,11 @@ def execute_run(
                 after=stored,
             )
             rebuild_kg(session)
+        try:
+            run_evaluation(settings)
+        except Exception:
+            # Scoring is a report on the run, never a reason to fail it.
+            logger.exception("accuracy evaluation failed", extra={"run_id": run_id})
         failed = any(r.error for records in totals.records.values() for r in records)
         usage = getattr(provider, "usage", None)
         hits = usage().cache_hits if callable(usage) else 0
@@ -789,6 +876,7 @@ def execute_run(
                     if documents
                     else "Skipped: no new regulation documents to analyse."
                 ),
+                with_change=bool(superseding),
             ),
             hits,
         )
@@ -799,4 +887,10 @@ def execute_run(
             if isinstance(exc, PipelineNotConfiguredError)
             else f"Run stopped: {type(exc).__name__}. See the server log."
         )
-        _finish(session_factory, run_id, "failed", _node_rows(totals, run_started, message), 0)
+        _finish(
+            session_factory,
+            run_id,
+            "failed",
+            _node_rows(totals, run_started, message, with_change=bool(superseding)),
+            0,
+        )

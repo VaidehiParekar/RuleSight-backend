@@ -3,8 +3,14 @@
 Pure functions without database or external dependencies, matching TEAM_PLAN_ONE_NIGHT.md §6 and §7.
 """
 
+import json
+from functools import lru_cache
+from pathlib import Path
 from typing import Literal
 
+from pydantic import BaseModel, Field
+
+from app.core.config import get_settings
 from app.schemas.domain import (
     Applicability,
     Coverage,
@@ -15,31 +21,35 @@ from app.schemas.domain import (
     RiskFactors,
 )
 
-CRITICALITY_MAP: dict[str, int] = {
-    # Criticality 3: Regulatory reporting, financial crime, data security
-    "financial_crime": 3,
-    "reporting": 3,
-    "security": 3,
-    "data_protection": 3,
-    "str_ctr": 3,
-    "cdd": 2,
-    "onboarding": 2,
-    "v-cip": 2,
-    "currency_handling": 2,
-    "nsm": 2,
-    "note_sorting": 2,
-    "governance": 1,
-    "training": 1,
-    "documentation": 1,
-}
 
-SEVERITY_MAP: dict[GapType, float] = {
-    "missing": 3.0,
-    "design_operating": 3.0,
-    "design": 2.0,
-    "operating": 1.5,
-    "insufficient_info": 1.0,
-}
+class RiskRules(BaseModel):
+    """The risk formula's weights, loaded from the JSON file at RISK_RULES_PATH."""
+
+    version: str
+    criticality_default: int = Field(ge=1, le=3)
+    criticality_by_topic_keyword: dict[str, int]
+    severity_by_gap_type: dict[str, float]
+    urgency_by_origin: dict[str, float]
+    p1_threshold: float
+    p2_threshold: float
+
+
+@lru_cache(maxsize=4)
+def load_risk_rules(path: Path) -> RiskRules:
+    data = json.loads(path.read_text(encoding="utf-8"))
+    return RiskRules(
+        version=data["version"],
+        criticality_default=data["criticality"]["default"],
+        criticality_by_topic_keyword=data["criticality"]["by_topic_keyword"],
+        severity_by_gap_type=data["severity_by_gap_type"],
+        urgency_by_origin=data["urgency_by_origin"],
+        p1_threshold=data["priority_thresholds"]["P1"],
+        p2_threshold=data["priority_thresholds"]["P2"],
+    )
+
+
+def risk_rules() -> RiskRules:
+    return load_risk_rules(get_settings().risk_rules_path)
 
 
 def evaluate_gap_type(
@@ -91,24 +101,26 @@ def calculate_risk(
     custom_criticality: int | None = None,
 ) -> tuple[float, Priority, RiskFactors]:
     """Calculates risk_score = criticality * severity * urgency and assigns P1/P2/P3 priority."""
+    rules = risk_rules()
     if custom_criticality is not None:
         criticality = custom_criticality
     else:
         topic_lower = topic.lower().replace(" ", "_").replace("-", "_")
-        criticality = 1
-        for key, val in CRITICALITY_MAP.items():
-            if key in topic_lower:
-                criticality = val
-                break
+        matches = [
+            weight
+            for keyword, weight in rules.criticality_by_topic_keyword.items()
+            if keyword in topic_lower
+        ]
+        criticality = max(matches, default=rules.criticality_default)
 
-    severity = SEVERITY_MAP.get(gap_type, 1.0)
-    urgency = 1.5 if origin == "change" else 1.0
+    severity = rules.severity_by_gap_type.get(gap_type, 1.0)
+    urgency = rules.urgency_by_origin.get(origin, 1.0)
 
     score = round(float(criticality) * severity * urgency, 2)
 
-    if score >= 6.0:
+    if score >= rules.p1_threshold:
         priority: Priority = "P1"
-    elif score >= 3.0:
+    elif score >= rules.p2_threshold:
         priority = "P2"
     else:
         priority = "P3"
@@ -117,7 +129,7 @@ def calculate_risk(
         criticality=criticality,
         severity=severity,
         urgency=urgency,
-        rule_version="v1",
+        rule_version=rules.version,
     )
 
     return score, priority, factors

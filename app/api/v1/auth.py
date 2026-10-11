@@ -47,11 +47,13 @@ def login(
 
     user_id = user["id"]
     role = user["role"]
-    token = create_access_token({
-        "sub": user_id,
-        "email": user["email"],
-        "role": role,
-    })
+    token = create_access_token(
+        {
+            "sub": user_id,
+            "email": user["email"],
+            "role": role,
+        }
+    )
     user_resp = user_response_from_row(user)
 
     with write_transaction(session):

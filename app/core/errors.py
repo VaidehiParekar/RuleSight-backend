@@ -72,15 +72,11 @@ def register_exception_handlers(app: FastAPI) -> None:
             loc: tuple[Any, ...] = tuple(error.get("loc", ()))
             field = ".".join(str(part) for part in loc)
             details.append(ErrorDetail(field=field, message=str(error["msg"])))
-        return _error_response(
-            request, 422, "validation_error", "The request is invalid.", details
-        )
+        return _error_response(request, 422, "validation_error", "The request is invalid.", details)
 
     @app.exception_handler(Exception)
     async def handle_unexpected_error(request: Request, exc: Exception) -> JSONResponse:
         # Log the traceback server-side; the client receives only a generic message.
         request_id: str | None = getattr(request.state, "request_id", None)
         logger.error("unhandled exception", exc_info=exc, extra={"request_id": request_id})
-        return _error_response(
-            request, 500, "internal_error", "An unexpected error occurred."
-        )
+        return _error_response(request, 500, "internal_error", "An unexpected error occurred.")

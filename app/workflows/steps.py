@@ -167,6 +167,7 @@ class ExtractionResult:
 def extract_obligations(
     provider: StructuredLLMProvider,
     clauses: Sequence[ClauseInput],
+    institution: str | None = None,
 ) -> ExtractionResult:
     clause_texts = {c.clause_ref: c.text for c in clauses}
     by_ref = {c.clause_ref: c for c in clauses}
@@ -176,7 +177,7 @@ def extract_obligations(
         notes: Mapping[str, tuple[str, ...]],
     ) -> Iterable[tuple[str, ObligationDraft]]:
         batch_clauses = [by_ref[k] for k in keys]
-        prompt = prompts.obligations_prompt(batch_clauses, notes)
+        prompt = prompts.obligations_prompt(batch_clauses, notes, institution)
         response = _ask(provider, prompt, ObligationBatch)
         return [(d.clause_ref, d) for d in response.obligations]
 

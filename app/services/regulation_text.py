@@ -93,6 +93,23 @@ def split_paragraphs(text: str) -> list[Paragraph]:
     return paragraphs
 
 
+def batch_by_size(paragraphs: list[Paragraph], max_chars: int) -> list[list[Paragraph]]:
+    """Groups paragraphs, in order, so each model call carries about ``max_chars`` of text.
+    A paragraph longer than the budget is sent on its own rather than split mid-clause."""
+    batches: list[list[Paragraph]] = []
+    current: list[Paragraph] = []
+    size = 0
+    for paragraph in paragraphs:
+        if current and size + len(paragraph.text) > max_chars:
+            batches.append(current)
+            current, size = [], 0
+        current.append(paragraph)
+        size += len(paragraph.text)
+    if current:
+        batches.append(current)
+    return batches
+
+
 def select_paragraphs(
     paragraphs: list[Paragraph],
     *,

@@ -8,7 +8,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from enum import StrEnum
 
-from app.workflows.schemas import NOT_SPECIFIED, ControlJudgement, ObligationDraft
+from app.workflows.schemas import NOT_SPECIFIED, ChangeFinding, ControlJudgement, ObligationDraft
 
 # Map typographic characters to plain ASCII so a quote still matches after copy and paste.
 _CHAR_FIXES = str.maketrans(
@@ -108,3 +108,69 @@ def check_judgement(
 def verdict_for(problems: tuple[str, ...]) -> Verdict:
     """Anything still failing after the allowed retry is flagged for human review, never dropped."""
     return Verdict.ACCEPTED if not problems else Verdict.NEEDS_REVIEW
+
+
+# ---------------------------------------------------------------- change findings
+
+# Labels each side of a comparison may take. An old unit cannot be "added", a new one cannot be
+# "removed".
+_LABELS_FOR_SIDE: dict[str, frozenset[str]] = {
+    "old": frozenset({"modified", "removed", "unchanged"}),
+    "new": frozenset({"modified", "added", "carried_over", "unchanged", "no_obligation"}),
+}
+
+
+def check_change(
+    finding: ChangeFinding,
+    *,
+    unit: str,
+    units: Mapping[str, str],
+    new_full_text: str,
+    expected_label: str | None = None,
+) -> tuple[str, ...]:
+    """Checks one change finding. ``units`` maps ids like 'old 3' / 'new 8.2' to their text.
+
+    Every claim must rest on verbatim quotes: the old side's quote must be in the old unit, the
+    new side's quote in the new unit, and a carried-over claim must name its source in words that
+    appear in the new version.
+    """
+    problems: list[str] = []
+    side = unit.split(" ", 1)[0]
+    if finding.unit != unit:
+        problems.append(f"unit must be '{unit}'")
+    if finding.label not in _LABELS_FOR_SIDE.get(side, frozenset()):
+        problems.append(f"label '{finding.label}' is not allowed for a unit of the {side} version")
+    if expected_label is not None and finding.label != expected_label:
+        problems.append(f"label must be '{expected_label}' (decided by the text comparison)")
+
+    old_text: str | None = None
+    new_text: str | None = None
+    if finding.label in ("modified", "unchanged"):
+        other = "new" if side == "old" else "old"
+        counterpart = finding.counterpart.strip()
+        if not counterpart.startswith(f"{other} ") or counterpart not in units:
+            problems.append(f"counterpart must be the id of a unit of the {other} version")
+        else:
+            old_text = units[unit] if side == "old" else units[counterpart]
+            new_text = units[counterpart] if side == "old" else units[unit]
+        if old_text is not None and not quote_in(finding.old_quote, old_text):
+            problems.append("old_quote is not an exact copy of text in the old unit")
+        if new_text is not None and not quote_in(finding.new_quote, new_text):
+            problems.append("new_quote is not an exact copy of text in the new unit")
+    elif finding.label in ("added", "carried_over"):
+        if not quote_in(finding.new_quote, units.get(unit, "")):
+            problems.append("new_quote is not an exact copy of text in this unit")
+        if finding.label == "carried_over" and not quote_in(finding.carried_from, new_full_text):
+            problems.append(
+                "carried_from must copy the words in the new version that name the earlier "
+                "instruction"
+            )
+    elif finding.label == "removed" and not quote_in(finding.old_quote, units.get(unit, "")):
+        problems.append("old_quote is not an exact copy of text in this unit")
+
+    for name, quote in (("old_quote", finding.old_quote), ("new_quote", finding.new_quote)):
+        if len(quote) > MAX_REVIEW_QUOTE_CHARS:
+            problems.append(f"{name} is too long; quote only the sentence that shows the change")
+    if finding.label not in ("no_obligation", "unchanged") and not finding.summary.strip():
+        problems.append("summary is empty")
+    return tuple(problems)

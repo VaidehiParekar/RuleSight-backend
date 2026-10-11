@@ -31,7 +31,7 @@ class ObligationDraft(BaseModel):
     threshold: str = Field(default=NOT_SPECIFIED, description="Numeric threshold, if stated.")
     applicability: Literal["applicable", "not_applicable", "unknown"] = Field(
         default="applicable",
-        description="Whether the clause applies to a scheduled commercial bank in India.",
+        description="Whether the clause applies to the institution described in the task.",
     )
     applicability_reason: str = Field(
         default=NOT_SPECIFIED,
@@ -73,3 +73,56 @@ class RemediationDraft(BaseModel):
 
 class RemediationBatch(BaseModel):
     drafts: list[RemediationDraft]
+
+
+# ---------------------------------------------------------------- change intelligence
+
+ChangeLabel = Literal["modified", "added", "removed", "carried_over", "unchanged", "no_obligation"]
+
+
+class ChangeFinding(BaseModel):
+    unit: str = Field(description="Id of the unit being judged, exactly as given, e.g. 'new 8.2'.")
+    label: ChangeLabel = Field(
+        description=(
+            "modified: the duty exists in both versions but changed. added: a duty only the new "
+            "version has. removed: a duty only the old version has. carried_over: the new version "
+            "restates a duty from an earlier instruction it names, so it is not new. unchanged: "
+            "same duty, same terms. no_obligation: the unit creates no duty."
+        )
+    )
+    counterpart: str = Field(
+        default="",
+        description=(
+            "For modified or unchanged: id of the matching unit in the other version, "
+            "e.g. 'old 3'. Empty otherwise."
+        ),
+    )
+    title: str = Field(description="Short headline of the change, at most 12 words.")
+    summary: str = Field(
+        description="One to three sentences on what changed. State only what the text says."
+    )
+    significance: Literal["high", "medium", "low", "administrative"] = Field(
+        description=(
+            "high: a new or stricter duty, deadline or penalty. medium: a material change in "
+            "scope or method. low: a minor change. administrative: wording, numbering, references."
+        )
+    )
+    old_quote: str = Field(
+        default="",
+        description="Sentence from the old version that supports the finding, copied exactly.",
+    )
+    new_quote: str = Field(
+        default="",
+        description="Sentence from the new version that supports the finding, copied exactly.",
+    )
+    carried_from: str = Field(
+        default="",
+        description=(
+            "For carried_over only: the words in the new version that name the earlier "
+            "instruction it restates, copied exactly. Empty otherwise."
+        ),
+    )
+
+
+class ChangeBatch(BaseModel):
+    findings: list[ChangeFinding]

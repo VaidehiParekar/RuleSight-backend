@@ -43,6 +43,7 @@ def _iso(value: Any) -> str:
 
 # ---- Documents ---------------------------------------------------------------------------------
 
+
 def list_documents_sql(session: Session) -> list[SourceDocument]:
     query = text("""
         SELECT d.*,
@@ -102,6 +103,7 @@ def insert_document_sql(session: Session, doc: dict[str, Any]) -> None:
 
 # ---- Obligations -------------------------------------------------------------------------------
 
+
 def list_obligations_sql(
     session: Session,
     document_id: str | None = None,
@@ -159,6 +161,7 @@ def update_obligation_sql(
 
 # ---- Controls ----------------------------------------------------------------------------------
 
+
 def list_controls_sql(session: Session) -> list[Control]:
     query = text("SELECT * FROM controls ORDER BY code ASC")
     rows = session.execute(query).mappings().all()
@@ -172,6 +175,7 @@ def get_control_sql(session: Session, control_id: str) -> Control | None:
 
 
 # ---- Mappings ----------------------------------------------------------------------------------
+
 
 def list_mappings_sql(session: Session, obligation_id: str | None = None) -> list[Mapping]:
     if obligation_id:
@@ -207,6 +211,7 @@ def update_mapping_status_sql(session: Session, mapping_id: str, status: str) ->
 
 
 # ---- Gaps --------------------------------------------------------------------------------------
+
 
 def list_gaps_sql(
     session: Session,
@@ -265,6 +270,7 @@ def update_gap_status_sql(
 
 # ---- Remediations ------------------------------------------------------------------------------
 
+
 def list_remediations_sql(session: Session) -> list[Remediation]:
     query = text("SELECT * FROM remediations ORDER BY created_at DESC")
     rows = session.execute(query).mappings().all()
@@ -304,6 +310,7 @@ def update_remediation_sql(
 
 # ---- Evidence ----------------------------------------------------------------------------------
 
+
 def list_evidence_sql(session: Session) -> list[Evidence]:
     query = text("SELECT * FROM evidence ORDER BY code ASC")
     rows = session.execute(query).mappings().all()
@@ -330,6 +337,7 @@ def get_evidence_sql(session: Session, evd_id: str) -> Evidence | None:
 
 
 # ---- Audit Log ---------------------------------------------------------------------------------
+
 
 def list_audit_sql(
     session: Session,
@@ -364,6 +372,7 @@ def list_audit_sql(
 
 # ---- Assessments -------------------------------------------------------------------------------
 
+
 def get_assessment_for_obligation_sql(session: Session, obligation_id: str) -> Assessment | None:
     query = text("SELECT * FROM assessments WHERE obligation_id = :ob_id")
     row = session.execute(query, {"ob_id": obligation_id}).mappings().first()
@@ -376,6 +385,7 @@ def get_assessment_for_obligation_sql(session: Session, obligation_id: str) -> A
 
 
 # ---- Gap Trace (The Money Screen) --------------------------------------------------------------
+
 
 def get_gap_trace_sql(session: Session, gap_id: str) -> GapTrace | None:
     gap = get_gap_sql(session, gap_id)
@@ -472,9 +482,9 @@ def _diff_phrases(old_text: str, new_text: str) -> tuple[list[str], list[str]]:
     added: list[str] = []
     for tag, i1, i2, j1, j2 in matcher.get_opcodes():
         if tag in ("replace", "delete") and i2 > i1:
-            removed.append(old_text[old_words[i1].start():old_words[i2 - 1].end()])
+            removed.append(old_text[old_words[i1].start() : old_words[i2 - 1].end()])
         if tag in ("replace", "insert") and j2 > j1:
-            added.append(new_text[new_words[j1].start():new_words[j2 - 1].end()])
+            added.append(new_text[new_words[j1].start() : new_words[j2 - 1].end()])
     return removed, added
 
 
@@ -526,14 +536,28 @@ def _change_from_row(
 
 
 def get_latest_superseding_pair_sql(session: Session) -> tuple[str, str] | None:
-    """(old_id, new_id) for the most recent document that supersedes another, if any."""
-    row = session.execute(text("""
-        SELECT supersedes_id AS old_id, id AS new_id
-        FROM documents
-        WHERE supersedes_id IS NOT NULL
-        ORDER BY created_at DESC
+    """(old_id, new_id) for the most recent document that supersedes another, if any.
+
+    Pairs whose changes have been detected (by the pipeline's change branch) come first, so a
+    just-uploaded version that has not been analysed yet does not hide the latest results.
+    """
+    row = (
+        session.execute(
+            text("""
+        SELECT d.supersedes_id AS old_id, d.id AS new_id
+        FROM documents d
+        WHERE d.supersedes_id IS NOT NULL
+        ORDER BY EXISTS (
+                     SELECT 1 FROM changes c
+                     WHERE c.old_document_id = d.supersedes_id AND c.new_document_id = d.id
+                 ) DESC,
+                 d.created_at DESC
         LIMIT 1
-    """)).mappings().first()
+    """)
+        )
+        .mappings()
+        .first()
+    )
     return (row["old_id"], row["new_id"]) if row else None
 
 
@@ -598,11 +622,17 @@ def get_next_deadline_sql(session: Session, now: datetime | None = None) -> Next
     """The earliest upcoming deadline among applicable obligations (deadline stored as a date)."""
     tz = ZoneInfo(get_settings().business_timezone)
     now = now or datetime.now(tz)
-    rows = session.execute(text("""
+    rows = (
+        session.execute(
+            text("""
         SELECT code, source_label, deadline
         FROM obligations
         WHERE applicability = 'applicable' AND deadline IS NOT NULL
-    """)).mappings().all()
+    """)
+        )
+        .mappings()
+        .all()
+    )
 
     upcoming: list[tuple[datetime, dict[str, Any]]] = []
     for r in rows:
@@ -626,7 +656,9 @@ def get_next_deadline_sql(session: Session, now: datetime | None = None) -> Next
 
 def get_dashboard_summary_sql(session: Session) -> DashboardSummary:
     # 1. Obligations breakdown
-    ob_stats = session.execute(text("""
+    ob_stats = (
+        session.execute(
+            text("""
         SELECT
             COUNT(*) AS total,
             COUNT(*) FILTER (WHERE applicability = 'applicable') AS applicable,
@@ -644,7 +676,11 @@ def get_dashboard_summary_sql(session: Session) -> DashboardSummary:
             COUNT(*) FILTER (WHERE review_status = 'rejected') AS rev_rejected,
             COUNT(*) FILTER (WHERE quote_verified = TRUE) AS quotes_verified
         FROM obligations
-    """)).mappings().first()
+    """)
+        )
+        .mappings()
+        .first()
+    )
 
     ob_total = ob_stats["total"] if ob_stats else 0
     ob_app = ob_stats["applicable"] if ob_stats else 0
@@ -658,7 +694,9 @@ def get_dashboard_summary_sql(session: Session) -> DashboardSummary:
     }
 
     # 2. Gaps breakdown
-    gap_stats = session.execute(text("""
+    gap_stats = (
+        session.execute(
+            text("""
         SELECT
             COUNT(*) AS open_count,
             COALESCE(SUM(risk_score), 0) AS risk_exposure,
@@ -667,7 +705,11 @@ def get_dashboard_summary_sql(session: Session) -> DashboardSummary:
             COUNT(*) FILTER (WHERE priority = 'P3') AS p3
         FROM gaps
         WHERE status != 'dismissed'
-    """)).mappings().first()
+    """)
+        )
+        .mappings()
+        .first()
+    )
 
     open_gaps = gap_stats["open_count"] if gap_stats else 0
     risk_exposure = float(gap_stats["risk_exposure"]) if gap_stats else 0.0
@@ -678,7 +720,9 @@ def get_dashboard_summary_sql(session: Session) -> DashboardSummary:
     }
 
     # Gaps by type
-    gap_type_rows = session.execute(text("""
+    gap_type_rows = (
+        session.execute(
+            text("""
         SELECT gap_type,
                COUNT(*) FILTER (WHERE priority = 'P1') AS p1,
                COUNT(*) FILTER (WHERE priority = 'P2') AS p2,
@@ -686,7 +730,11 @@ def get_dashboard_summary_sql(session: Session) -> DashboardSummary:
         FROM gaps
         WHERE status != 'dismissed'
         GROUP BY gap_type
-    """)).mappings().all()
+    """)
+        )
+        .mappings()
+        .all()
+    )
 
     type_counts_map = {
         r["gap_type"]: {"P1": r["p1"], "P2": r["p2"], "P3": r["p3"]} for r in gap_type_rows
@@ -698,31 +746,49 @@ def get_dashboard_summary_sql(session: Session) -> DashboardSummary:
             gaps_by_type.append({"gap_type": gt, "counts": counts})
 
     # 3. Remediation stats
-    rem_stats = session.execute(text("""
+    rem_stats = (
+        session.execute(
+            text("""
         SELECT
             COUNT(*) AS total,
             COUNT(*) FILTER (
                 WHERE status IN ('approved', 'in_progress', 'completed', 'verified')
             ) AS approved
         FROM remediations
-    """)).mappings().first()
+    """)
+        )
+        .mappings()
+        .first()
+    )
     rem_total = rem_stats["total"] if rem_stats else 0
     rem_approved = rem_stats["approved"] if rem_stats else 0
 
     # 4. Mappings review count & critic retries
-    map_stats = session.execute(text("""
+    map_stats = (
+        session.execute(
+            text("""
         SELECT
             COUNT(*) FILTER (WHERE status IN ('suggested', 'needs_review')) AS to_review,
             COUNT(*) FILTER (WHERE critic = 'retried') AS retried
         FROM mappings
-    """)).mappings().first()
+    """)
+        )
+        .mappings()
+        .first()
+    )
     mappings_to_review = map_stats["to_review"] if map_stats else 0
     critic_retries = map_stats["retried"] if map_stats else 0
 
     # 5. Latest run
-    last_run_row = session.execute(text("""
+    last_run_row = (
+        session.execute(
+            text("""
         SELECT * FROM agent_runs ORDER BY started_at DESC LIMIT 1
-    """)).mappings().first()
+    """)
+        )
+        .mappings()
+        .first()
+    )
     last_run_at = ""
     llm_calls = 0
     if last_run_row:
@@ -762,13 +828,18 @@ def get_dashboard_summary_sql(session: Session) -> DashboardSummary:
 
 # ---- Agent Runs --------------------------------------------------------------------------------
 
+
 def list_runs_sql(session: Session) -> list[AgentRun]:
     query = text("SELECT * FROM agent_runs ORDER BY started_at DESC")
     rows = session.execute(query).mappings().all()
     results: list[AgentRun] = []
     for r in rows:
         d = dict(r)
-        d["started_at"] = d["started_at"].isoformat() if isinstance(d["started_at"], datetime) else str(d["started_at"])
+        d["started_at"] = (
+            d["started_at"].isoformat()
+            if isinstance(d["started_at"], datetime)
+            else str(d["started_at"])
+        )
         if isinstance(d.get("nodes"), str):
             d["nodes"] = json.loads(d["nodes"])
         results.append(AgentRun.model_validate(d))
@@ -781,13 +852,18 @@ def get_run_sql(session: Session, run_id: str) -> AgentRun | None:
     if not row:
         return None
     d = dict(row)
-    d["started_at"] = d["started_at"].isoformat() if isinstance(d["started_at"], datetime) else str(d["started_at"])
+    d["started_at"] = (
+        d["started_at"].isoformat()
+        if isinstance(d["started_at"], datetime)
+        else str(d["started_at"])
+    )
     if isinstance(d.get("nodes"), str):
         d["nodes"] = json.loads(d["nodes"])
     return AgentRun.model_validate(d)
 
 
 # ---- Users & RBAC ------------------------------------------------------------------------------
+
 
 def get_user_by_email_sql(session: Session, email: str) -> dict[str, Any] | None:
     query = text(
@@ -838,4 +914,3 @@ def update_user_last_login_sql(session: Session, user_id: str) -> None:
     query = text("UPDATE users SET last_login_at = now() WHERE id = :id")
     # No commit here: the caller's transaction commits it with the login audit entry.
     session.execute(query, {"id": user_id})
-

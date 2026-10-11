@@ -123,6 +123,7 @@ def build_pipeline(
     *,
     candidate_finder: CandidateFinder = keyword_candidates,
     gap_builder: GapBuilder | None = None,
+    institution: str | None = None,
 ) -> Callable[[PipelineState], PipelineState]:
     """Compiles the graph. The provider and candidate finder are injected, so tests can use fakes
     and the knowledge-graph finder can replace the keyword finder without changing the graph.
@@ -135,7 +136,7 @@ def build_pipeline(
         metered = usage_of(provider)
         clauses = state.get("clauses", [])
         try:
-            outcome: ExtractionResult = extract_obligations(provider, clauses)
+            outcome: ExtractionResult = extract_obligations(provider, clauses, institution)
         except LLMProviderError as exc:
             return {
                 "obligations": [],
@@ -243,9 +244,15 @@ def run_pipeline(
     gaps: Sequence[GapInput] = (),
     candidate_finder: CandidateFinder = keyword_candidates,
     gap_builder: GapBuilder | None = None,
+    institution: str | None = None,
 ) -> PipelineResult:
     """Runs the pipeline end to end and returns plain results for the API layer to persist."""
-    graph = build_pipeline(provider, candidate_finder=candidate_finder, gap_builder=gap_builder)
+    graph = build_pipeline(
+        provider,
+        candidate_finder=candidate_finder,
+        gap_builder=gap_builder,
+        institution=institution,
+    )
     final = graph(
         PipelineState(
             clauses=list(clauses),

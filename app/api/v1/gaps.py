@@ -247,9 +247,10 @@ def create_remediation_draft(
         owner_team = next(
             (c.owner for c in controls if c.owner), settings.remediation_default_owner_team
         )
-        closure_evidence = "; ".join(
-            dict.fromkeys(c.evidence_expected for c in controls if c.evidence_expected)
-        ) or settings.remediation_default_closure_evidence
+        closure_evidence = (
+            "; ".join(dict.fromkeys(c.evidence_expected for c in controls if c.evidence_expected))
+            or settings.remediation_default_closure_evidence
+        )
         requirement = obligation.action if obligation else gap.description
         action = f"Close {gap.code} ({gap.title}): {requirement}"
 
@@ -262,17 +263,21 @@ def create_remediation_draft(
             )
             RETURNING *
         """)
-        row = session.execute(
-            query,
-            {
-                "id": rem_id,
-                "gap_id": gap.id,
-                "action": action,
-                "owner_team": owner_team,
-                "target_days": settings.remediation_default_target_days,
-                "closure_evidence": closure_evidence,
-            },
-        ).mappings().first()
+        row = (
+            session.execute(
+                query,
+                {
+                    "id": rem_id,
+                    "gap_id": gap.id,
+                    "action": action,
+                    "owner_team": owner_team,
+                    "target_days": settings.remediation_default_target_days,
+                    "closure_evidence": closure_evidence,
+                },
+            )
+            .mappings()
+            .first()
+        )
 
         record_audit(
             session,
