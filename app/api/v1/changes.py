@@ -27,6 +27,11 @@ def compare_versions_get(
         raise HTTPException(status_code=404, detail="Comparison documents not found")
     # Enrich changes with dynamic graph impact analysis
     for chg in res.changes:
+        if chg.impact is None:
+            chg.impact = {}
+        chg.impact.setdefault("obligations", [])
+        chg.impact.setdefault("controls", [])
+        chg.impact.setdefault("gaps", [])
         affected = kg_impact(chg.clause_ref)
         if affected:
             chg.impact["graph_affected_entities"] = affected
@@ -46,6 +51,11 @@ def compare_versions_post(
         raise HTTPException(status_code=404, detail="Comparison documents not found")
     # Enrich changes with dynamic graph impact analysis
     for chg in res.changes:
+        if chg.impact is None:
+            chg.impact = {}
+        chg.impact.setdefault("obligations", [])
+        chg.impact.setdefault("controls", [])
+        chg.impact.setdefault("gaps", [])
         affected = kg_impact(chg.clause_ref)
         if affected:
             chg.impact["graph_affected_entities"] = affected
