@@ -45,3 +45,6 @@ uploads/
 
 # --- Miscellaneous -------------------------------------------------------------------------------
 .claude/settings.local.json
+
+# Local LLM response cache and other runtime files (never commit)
+storage/
