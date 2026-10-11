@@ -5,7 +5,7 @@ OB-03,RBI KYC MD 2016,18(a)(iv),V-CIP video must contain live GPS geo-tagging,Ap
 OB-04,RBI KYC MD 2016,18(a)(v),V-CIP must use face liveness / spoof detection,Applicable,CTL-17,Partial,Inadequate (face match only),Insufficient evidence,,G-04,Design,P2
 OB-05,RBI KYC MD 2016,18(c)(i),V-CIP data and recordings stored in India,Applicable,CTL-18,Insufficient information,Storage location not stated,Insufficient evidence,,G-05,Insufficient info,P3
 OB-06,RBI KYC MD 2016,37(a),Review risk categorisation at least once in six months,Applicable,CTL-02,Partial,Inadequate (annual review),Insufficient evidence,,G-06,Design,P2
-OB-07,RBI KYC MD 2016,38,Periodic updation: every 2 years for High risk (8 Medium / 10 Low),Applicable,CTL-05,Partial,Inadequate (3 years for High),Partially effective (18.4% High-risk overdue; 2,105 accounts not on due list),EVD-02,G-07,Design + Operating,P1
+OB-07,RBI KYC MD 2016,38,Periodic updation: every 2 years for High risk (8 Medium / 10 Low),Applicable,CTL-05,Partial,Inadequate (3 years for High),"Partially effective (18.4% High-risk overdue; 2,105 accounts not on due list)",EVD-02,G-07,Design + Operating,P1
 OB-08,RBI KYC MD 2016,46(a),Keep transaction records at least 5 years,Applicable,CTL-09,Covered,Adequate (8 years),Insufficient evidence,,,,
 OB-09,RBI KYC MD 2016,46(b),Keep identification records at least 5 years after relationship ends,Applicable,CTL-09,Covered,Adequate (8 years),Insufficient evidence,,,,
 OB-10,RBI KYC MD 2016,70,On-going employee KYC/AML training programme,Applicable,NONE,Missing,No control,Not applicable,,G-08,Missing,P2
@@ -15,7 +15,7 @@ N-02,RBI NSM v2 (2026),2.3,Sort phased-out series as unfit,Applicable,CTL-21,Cov
 N-03,RBI NSM v2 (2026),5 (Tables 1-3),Sort notes as unfit by fitness criteria,Applicable,CTL-21,Covered,Adequate,Insufficient evidence,,,,
 N-04,RBI NSM v2 (2026),6.1 / 6.2,Mutilated and built-up notes suspect/reject; manual inspection,Applicable,CTL-22,Covered,Adequate,Insufficient evidence,,,,
 N-05,RBI NSM v2 (2026),7,Quarterly accuracy testing and recalibration,Applicable,CTL-19,Partial,Inadequate (half-yearly),Ineffective (no test Jul-Sep 2026),EVD-07,NG-01,Design + Operating,P1
-N-06,RBI NSM v2 (2026),Testing Procedure,Test deck of at least 2,000 notes,Applicable,CTL-19,Partial,Inadequate (1,000 notes),Insufficient evidence,,NG-02,Design,P2
+N-06,RBI NSM v2 (2026),Testing Procedure,"Test deck of at least 2,000 notes",Applicable,CTL-19,Partial,"Inadequate (1,000 notes)",Insufficient evidence,,NG-02,Design,P2
 N-07,RBI NSM v2 (2026),8.2,Phase out discontinued NSM models by 30 June 2027,Applicable,NONE,Missing,No control,Not applicable,EVD-06,NG-03,Missing,P1
 N-08,RBI NSM v2 (2026),8.2,Procure only BIS-certified NSMs,Applicable,CTL-20,Covered,Adequate,Insufficient evidence,,,,
 NSM-SCOPE,RBI NSM v2 (2026),3,Applies to machines operated indirectly by agents,Applicable,NONE,Partial scope,Inadequate (CIT agency machines excluded),Insufficient evidence,EVD-06,NG-04,Design,P2

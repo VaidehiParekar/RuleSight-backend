@@ -16,9 +16,7 @@ DesignAssessment = Literal["adequate", "inadequate", "unknown"]
 OperatingAssessment = Literal[
     "effective", "partially_effective", "ineffective", "insufficient_evidence", "not_applicable"
 ]
-RemediationStatus = Literal[
-    "draft", "approved", "in_progress", "completed", "verified", "rejected"
-]
+RemediationStatus = Literal["draft", "approved", "in_progress", "completed", "verified", "rejected"]
 DocType = Literal["regulation", "policy", "rcm", "evidence"]
 DocStatus = Literal["uploaded", "processing", "ready", "failed", "superseded"]
 ChangeType = Literal["modified", "withdrawn", "corpus_gap", "consolidated"]
@@ -393,5 +391,3 @@ class AuthResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"  # noqa: S105 - the OAuth2 token type, not a secret
     user: UserResponse
-
-

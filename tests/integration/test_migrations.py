@@ -30,7 +30,9 @@ def test_database_url(monkeypatch: pytest.MonkeyPatch) -> Iterator[str]:
 
     database_name = urlparse(url).path.lstrip("/")
     if "test" not in database_name.lower():
-        pytest.fail("Refusing to run migrations: TEST_DATABASE_URL must point at a database named *test*")
+        pytest.fail(
+            "Refusing to run migrations: TEST_DATABASE_URL must point at a database named *test*"
+        )
 
     # env.py reads DATABASE_URL through settings, so point it at the test database.
     monkeypatch.setenv("DATABASE_URL", url)

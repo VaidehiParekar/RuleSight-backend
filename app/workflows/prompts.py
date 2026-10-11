@@ -45,16 +45,22 @@ def _notes(notes: Mapping[Any, tuple[str, ...]]) -> str:
 def obligations_prompt(
     clauses: Sequence[ClauseInput],
     notes: Mapping[str, tuple[str, ...]],
+    institution: str | None = None,
 ) -> str:
     blocks = "\n\n".join(_source(c.clause_ref, c.text) for c in clauses)
+    if institution:
+        scope = (
+            f"The institution being assessed is: {institution}. Set applicability to "
+            "not_applicable only if the clause clearly does not apply to this institution, and "
+            "then give applicability_reason. "
+        )
+    else:
+        scope = "Set applicability to unknown when you cannot tell whether the clause applies. "
     return (
         f"{SYSTEM_RULES}\n\n"
-        "Task: list every obligation (a duty a bank must perform) created by each clause below. "
-        "For each obligation give the clause_ref, the exact source_quote, the topic, "
-        "and the action. "
-        "Set applicability to not_applicable only if the clause clearly does not reach a scheduled "
-        "commercial bank in India, and then give applicability_reason. Return an empty list if a "
-        "clause creates no duty.\n\n"
+        "Task: list every obligation (a duty a regulated entity must perform) created by each "
+        "clause below. For each obligation give the clause_ref, the exact source_quote, the topic, "
+        f"and the action. {scope}Return an empty list if a clause creates no duty.\n\n"
         f"{blocks}"
         f"{_notes(notes)}"
     )
@@ -78,7 +84,7 @@ def mapping_prompt(
         sources.setdefault(control.code, control.text)
         pair_lines.append(
             f"- obligation {obligation.code} / control {control.code} "
-            "(why they were paired: {link.path})"
+            f"(why they were paired: {link.path})"
         )
     source_blocks = "\n\n".join(_source(code, text) for code, text in sources.items())
     return (
@@ -116,4 +122,35 @@ def remediation_prompt(
         "and the closure_evidence that would "
         "prove it is done. These are drafts; do not describe any action as completed.\n\n"
         "Gaps:\n" + "\n".join(lines) + _notes(notes)
+    )
+
+
+def change_prompt(
+    *,
+    old_label: str,
+    new_label: str,
+    sources: Mapping[str, str],
+    tasks: Sequence[str],
+    notes: Mapping[str, tuple[str, ...]],
+) -> str:
+    """Asks for one finding per unit listed in ``tasks``. ``sources`` maps unit ids such as
+    'old 3' or 'new 8.2' to their text; each task line names the unit and any hints."""
+    blocks = "\n\n".join(_source(unit, text) for unit, text in sources.items())
+    return (
+        f"{SYSTEM_RULES}\n\n"
+        f"Task: compare two versions of an RBI instruction at the level of obligations. "
+        f"Units with ids starting 'old' come from the old version ({_escape(old_label)}); units "
+        f"starting 'new' come from the new version ({_escape(new_label)}). The versions may be "
+        "structured differently, so match duties by what they require, not by paragraph number. "
+        "Return exactly one finding for each unit listed below, using its id as unit. "
+        "Every finding must be supported by quotes copied exactly from the units: old_quote "
+        "from the old side and new_quote from the new side. If the new version says a duty comes "
+        "from an earlier instruction (for example 'issued vide circular ... dated ...'), label it "
+        "carried_over and copy those words into carried_from; do not call it new. Do not "
+        "describe the content of any instruction that is not supplied here.\n\n"
+        "Units to judge:\n"
+        + "\n".join(f"- {task}" for task in tasks)
+        + "\n\n"
+        + blocks
+        + _notes(notes)
     )

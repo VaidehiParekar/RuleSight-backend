@@ -54,20 +54,37 @@ class Settings(BaseSettings):
     # Upper bound on regulation paragraphs sent to the model in one pipeline run, so a large
     # direction cannot exhaust the model quota. A run can also name the paragraphs to read.
     pipeline_max_paragraphs: int = Field(default=30, gt=0)
+    # Who is being assessed, in one sentence, e.g. "Example Bank Ltd., a scheduled commercial
+    # bank in India". Used to judge whether a clause applies. Unset: applicability is left
+    # to the text alone.
+    institution_profile: str | None = None
+    # Weights and thresholds of the risk formula (criticality x severity x urgency).
+    risk_rules_path: Path = Path("config/risk_rules.json")
     # Retries for rate limits and "model overloaded" answers, with doubling waits in between.
     llm_transport_attempts: int = Field(default=6, ge=1, le=10)
     llm_retry_backoff_seconds: float = Field(default=3.0, gt=0)
+    # Longest a single model call may take. Large regulation batches need more than a minute.
+    llm_timeout_seconds: float = Field(default=180.0, gt=0)
+    # Minimum gap between model calls; keeps free-tier requests-per-minute limits happy.
+    llm_min_interval_seconds: float = Field(default=4.0, ge=0)
+    # Paragraphs are sent to the model in batches of about this many characters per call.
+    pipeline_batch_chars: int = Field(default=15000, gt=1000)
     # A run still marked running after this long is treated as abandoned (e.g. server restart).
     pipeline_run_timeout_minutes: int = Field(default=30, gt=0)
+    # Change intelligence (app/workflows/change.py). Two versions count as the same structure, and
+    # are diffed paragraph by paragraph, when at least this share of paragraph numbers appear in
+    # both and the shared paragraphs' headings are this similar on average (0..1). Otherwise
+    # obligations are matched by topic with one model call.
+    change_same_structure_min_ref_share: float = Field(default=0.6, ge=0, le=1)
+    change_same_structure_min_heading_similarity: float = Field(default=0.6, ge=0, le=1)
+    # Upper bound on units per version sent to the model in one change comparison.
+    change_max_units: int = Field(default=60, gt=0)
 
     # Sign-in tokens. The secret is never committed: set JWT_SECRET_KEY in .env. When it is unset
     # outside production, a random key is generated per process (tokens end on restart).
     jwt_secret_key: SecretStr | None = None
     jwt_algorithm: Literal["HS256", "HS384", "HS512"] = "HS256"
     jwt_expire_minutes: int = Field(default=60 * 24, gt=0)
-    # Development only: accept X-Actor (priya, rahul, ...) as a password-less sign-in. Used by the
-    # frontend on the main branch. Refused when APP_ENV=production.
-    allow_actor_header_auth: bool = False
     # Used only by scripts/set_user_passwords.py to set the demo accounts' password. Never read
     # by the running API.
     demo_user_password: SecretStr | None = None
@@ -91,6 +108,8 @@ class Settings(BaseSettings):
     # Optional JSON file with the latest evaluation report (EvalReport shape). When it is unset
     # or missing, GET /eval/latest reports that no measured evaluation exists.
     eval_report_path: Path | None = None
+    # Labelled answer key (CSV) used to score each pipeline run. Unset: runs are not scored.
+    answer_key_path: Path | None = None
 
     @model_validator(mode="after")
     def _require_model_for_gemini(self) -> "Settings":
@@ -102,8 +121,6 @@ class Settings(BaseSettings):
     def _require_jwt_secret_in_production(self) -> "Settings":
         if self.app_env == "production" and self.jwt_secret_key is None:
             raise ValueError("JWT_SECRET_KEY must be set when APP_ENV=production")
-        if self.app_env == "production" and self.allow_actor_header_auth:
-            raise ValueError("ALLOW_ACTOR_HEADER_AUTH must be false when APP_ENV=production")
         if self.jwt_secret_key is not None and len(self.jwt_secret_key.get_secret_value()) < 32:
             raise ValueError("JWT_SECRET_KEY must be at least 32 characters")
         return self

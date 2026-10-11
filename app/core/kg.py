@@ -22,9 +22,13 @@ def rebuild_kg(session: Session) -> None:
     g = nx.MultiDiGraph()
 
     # 1. Obligations and Clauses
-    ob_rows = session.execute(
-        text("SELECT id, code, clause_ref, source_label, summary, topic FROM obligations")
-    ).mappings().all()
+    ob_rows = (
+        session.execute(
+            text("SELECT id, code, clause_ref, source_label, summary, topic FROM obligations")
+        )
+        .mappings()
+        .all()
+    )
 
     for r in ob_rows:
         ob_id = r["id"]
@@ -44,9 +48,9 @@ def rebuild_kg(session: Session) -> None:
             g.add_edge(ob_id, topic_id, type="ABOUT")
 
     # 2. Controls
-    ctrl_rows = session.execute(
-        text("SELECT id, code, name, owner, topic FROM controls")
-    ).mappings().all()
+    ctrl_rows = (
+        session.execute(text("SELECT id, code, name, owner, topic FROM controls")).mappings().all()
+    )
 
     for r in ctrl_rows:
         ctrl_id = r["id"]
@@ -57,9 +61,11 @@ def rebuild_kg(session: Session) -> None:
             g.add_edge(ctrl_id, topic_id, type="ABOUT")
 
     # 3. Evidence
-    evd_rows = session.execute(
-        text("SELECT id, code, title, control_codes FROM evidence")
-    ).mappings().all()
+    evd_rows = (
+        session.execute(text("SELECT id, code, title, control_codes FROM evidence"))
+        .mappings()
+        .all()
+    )
 
     code_to_ctrl_id = {r["code"]: r["id"] for r in ctrl_rows}
 
@@ -72,9 +78,11 @@ def rebuild_kg(session: Session) -> None:
                 g.add_edge(code_to_ctrl_id[c_code], evd_id, type="SUPPORTED_BY")
 
     # 4. Mappings
-    map_rows = session.execute(
-        text("SELECT obligation_id, control_id, coverage, status FROM mappings")
-    ).mappings().all()
+    map_rows = (
+        session.execute(text("SELECT obligation_id, control_id, coverage, status FROM mappings"))
+        .mappings()
+        .all()
+    )
 
     for r in map_rows:
         if g.has_node(r["obligation_id"]) and g.has_node(r["control_id"]):
@@ -87,9 +95,13 @@ def rebuild_kg(session: Session) -> None:
             )
 
     # 5. Gaps
-    gap_rows = session.execute(
-        text("SELECT id, code, obligation_id, title, control_ids, evidence_ids FROM gaps")
-    ).mappings().all()
+    gap_rows = (
+        session.execute(
+            text("SELECT id, code, obligation_id, title, control_ids, evidence_ids FROM gaps")
+        )
+        .mappings()
+        .all()
+    )
 
     for r in gap_rows:
         gap_id = r["id"]
@@ -108,9 +120,7 @@ def rebuild_kg(session: Session) -> None:
                 g.add_edge(gap_id, eid, type="EVIDENCED_BY")
 
     # 6. Remediations
-    rem_rows = session.execute(
-        text("SELECT id, gap_id, action FROM remediations")
-    ).mappings().all()
+    rem_rows = session.execute(text("SELECT id, gap_id, action FROM remediations")).mappings().all()
 
     for r in rem_rows:
         rem_id = r["id"]
@@ -144,11 +154,13 @@ def kg_candidates(obligation_id: str) -> list[dict[str, Any]]:
         # Find controls linked to this topic
         for src, _, data in _graph.in_edges(topic, data=True):
             if data.get("type") == "ABOUT" and _graph.nodes[src].get("type") == "control":
-                candidates.append({
-                    "control_id": src,
-                    "control_code": _graph.nodes[src].get("label"),
-                    "path": [obligation_id, topic, src],
-                })
+                candidates.append(
+                    {
+                        "control_id": src,
+                        "control_code": _graph.nodes[src].get("label"),
+                        "path": [obligation_id, topic, src],
+                    }
+                )
 
     return candidates
 

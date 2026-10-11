@@ -1,0 +1,40 @@
+{
+  "version": "v1",
+  "description": "risk_score = criticality x severity x urgency. Edit this file to change the formula; no code change is needed. RISK_RULES_PATH points at it.",
+  "criticality": {
+    "default": 1,
+    "by_topic_keyword": {
+      "financial_crime": 3,
+      "reporting": 3,
+      "security": 3,
+      "data_protection": 3,
+      "str_ctr": 3,
+      "cdd": 2,
+      "kyc": 2,
+      "beneficial": 2,
+      "onboarding": 2,
+      "v_cip": 2,
+      "currency_handling": 2,
+      "nsm": 2,
+      "note_sorting": 2,
+      "governance": 1,
+      "training": 1,
+      "documentation": 1
+    }
+  },
+  "severity_by_gap_type": {
+    "missing": 3.0,
+    "design_operating": 3.0,
+    "design": 2.0,
+    "operating": 1.5,
+    "insufficient_info": 1.0
+  },
+  "urgency_by_origin": {
+    "initial": 1.0,
+    "change": 1.5
+  },
+  "priority_thresholds": {
+    "P1": 6.0,
+    "P2": 3.0
+  }
+}

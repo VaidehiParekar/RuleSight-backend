@@ -17,7 +17,9 @@ class Evidence(Base):
     control_codes: Mapped[list[str]] = mapped_column(JSONB, server_default="[]", nullable=False)
     columns: Mapped[list[str]] = mapped_column(JSONB, server_default="[]", nullable=False)
     rows: Mapped[list[list[str]]] = mapped_column(JSONB, server_default="[]", nullable=False)
-    flagged_cells: Mapped[list[list[int]]] = mapped_column(JSONB, server_default="[]", nullable=False)
+    flagged_cells: Mapped[list[list[int]]] = mapped_column(
+        JSONB, server_default="[]", nullable=False
+    )
     summary: Mapped[str] = mapped_column(Text, nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False

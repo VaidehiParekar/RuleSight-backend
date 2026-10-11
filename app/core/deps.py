@@ -1,8 +1,7 @@
 """FastAPI dependencies for authentication, RBAC authorization, and actor propagation.
 
 Every endpoint except the health probes and POST /auth/login requires a valid Bearer token
-(see ``require_permission``). The only header-based sign-in is the development X-Actor switch
-(``ALLOW_ACTOR_HEADER_AUTH``), which is off by default and refused in production.
+(see ``require_permission``). There is no header-based or anonymous fallback.
 """
 
 from collections.abc import Callable
@@ -13,7 +12,6 @@ from sqlalchemy.orm import Session
 
 from app.core.actor import ActorInfo
 from app.core.auth import decode_access_token, get_role_permissions, has_permission
-from app.core.config import get_settings
 from app.db.queries import get_user_by_id_sql
 from app.db.session import get_session
 from app.schemas.domain import UserResponse
@@ -52,20 +50,13 @@ def role_label(role: str) -> str:
 
 def get_current_user(
     authorization: Annotated[str | None, Header()] = None,
-    x_actor: Annotated[str | None, Header()] = None,
     session: Session = Depends(get_session),
 ) -> UserResponse:
     """Returns the signed-in user from the Bearer token, or raises 401."""
     if not authorization or not authorization.lower().startswith(_BEARER_PREFIX):
-        # Development only: the first frontend picks a demo user with X-Actor (no password).
-        # Off by default and refused in production (see Settings).
-        if get_settings().allow_actor_header_auth and x_actor:
-            user_data = get_user_by_id_sql(session, f"usr-{x_actor.strip().lower()}")
-            if user_data:
-                return user_response_from_row(user_data)
         raise _unauthorized("Sign in required.")
 
-    token = authorization[len(_BEARER_PREFIX):].strip()
+    token = authorization[len(_BEARER_PREFIX) :].strip()
     payload = decode_access_token(token) if token else None
     user_id = payload.get("sub") if payload else None
     if not user_id:

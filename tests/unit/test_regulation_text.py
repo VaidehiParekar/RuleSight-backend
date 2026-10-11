@@ -65,3 +65,13 @@ def test_default_selection_keeps_duties_and_respects_limit() -> None:
 def test_text_files_decode_and_binary_files_are_empty() -> None:
     assert extract_text(b"Banks shall comply.", "rule.txt") == "Banks shall comply."
     assert extract_text(b"\x00\x01\x02binary", "image.bin") == ""
+
+
+def test_batches_respect_size_and_order() -> None:
+    from app.services.regulation_text import batch_by_size
+
+    paragraphs = [Paragraph("1", "a" * 40), Paragraph("2", "b" * 40), Paragraph("3", "c" * 200)]
+
+    batches = batch_by_size(paragraphs, max_chars=100)
+
+    assert [[p.ref for p in b] for b in batches] == [["1", "2"], ["3"]]

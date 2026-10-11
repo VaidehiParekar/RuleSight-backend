@@ -14,6 +14,8 @@ from app.core.deps import get_current_actor, require_permission
 from app.db.queries import get_document_sql, list_documents_sql
 from app.db.session import get_session, write_transaction
 from app.schemas.domain import DocType, SourceDocument, UserResponse
+from app.services.evidence_import import EvidenceFormatError, import_evidence
+from app.services.rcm_import import RcmFormatError, import_controls, parse_rcm
 
 router = APIRouter(prefix="/documents", tags=["documents"])
 
@@ -102,6 +104,30 @@ def _save_upload(file: UploadFile, target: Path, max_bytes: int) -> tuple[bytes,
     return b"".join(parts), digest.hexdigest()
 
 
+def _import_bank_data(
+    session: Session, doc_type: str, content: bytes, file_name: str, title: str, doc_id: str
+) -> dict[str, str]:
+    """A control matrix becomes controls and an evidence table becomes evidence, in the same
+    transaction as the document, so a file that cannot be read is rejected as a whole."""
+    is_csv = file_name.lower().endswith(".csv")
+    try:
+        if doc_type == "rcm":
+            if not is_csv:
+                raise RcmFormatError("Upload the control matrix as a CSV file.")
+            count = import_controls(session, parse_rcm(content))
+            return {"controls_imported": str(count)}
+        if doc_type == "evidence" and is_csv:
+            code = import_evidence(
+                session, content=content, file_name=file_name, title=title, fallback_code=doc_id
+            )
+            return {"evidence": code}
+    except (RcmFormatError, EvidenceFormatError) as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)
+        ) from None
+    return {}
+
+
 @router.post("", response_model=SourceDocument)
 def upload_document(
     file: UploadFile = File(...),
@@ -140,10 +166,14 @@ def upload_document(
 
     content, sha256_hash = _save_upload(file, partial, settings.max_upload_mb * 1024 * 1024)
 
-    existing = session.execute(
-        text("SELECT id FROM documents WHERE sha256 = :sha256 LIMIT 1"),
-        {"sha256": sha256_hash},
-    ).mappings().first()
+    existing = (
+        session.execute(
+            text("SELECT id FROM documents WHERE sha256 = :sha256 LIMIT 1"),
+            {"sha256": sha256_hash},
+        )
+        .mappings()
+        .first()
+    )
     if existing:
         partial.unlink(missing_ok=True)
         doc = get_document_sql(session, existing["id"])
@@ -185,6 +215,7 @@ def upload_document(
                         "text": chunk_text,
                     },
                 )
+            imported = _import_bank_data(session, doc_type, content, file_name, title, doc_id)
             record_audit(
                 session,
                 actor=actor,
@@ -192,7 +223,7 @@ def upload_document(
                 entity_type="document",
                 entity_code=title,
                 before=None,
-                after={"status": "ready", "file": file_name},
+                after={"status": "ready", "file": file_name, **imported},
             )
             os.replace(partial, target)
     except BaseException:

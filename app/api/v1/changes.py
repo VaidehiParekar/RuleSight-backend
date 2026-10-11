@@ -17,9 +17,7 @@ class CompareInput(BaseModel):
     new_document_id: str | None = None
 
 
-def _compare(
-    session: Session, old_id: str | None, new_id: str | None
-) -> ChangeComparisonResponse:
+def _compare(session: Session, old_id: str | None, new_id: str | None) -> ChangeComparisonResponse:
     if not old_id or not new_id:
         pair = get_latest_superseding_pair_sql(session)
         if not pair:
