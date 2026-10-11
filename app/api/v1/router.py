@@ -7,7 +7,6 @@ from app.api.v1 import (
     controls,
     dashboard,
     documents,
-    eval as eval_api,
     gaps,
     graph,
     health,
@@ -15,6 +14,9 @@ from app.api.v1 import (
     obligations,
     pipeline,
     remediations,
+)
+from app.api.v1 import (
+    eval as eval_api,
 )
 
 # Mounted under /api/v1 by the application factory.

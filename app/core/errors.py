@@ -5,7 +5,6 @@ from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
-from app.core.logging import request_id_ctx
 from app.schemas.common import ErrorBody, ErrorDetail, ErrorResponse
 
 logger = logging.getLogger("app.errors")

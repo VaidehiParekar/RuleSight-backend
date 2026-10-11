@@ -65,6 +65,9 @@ class Settings(BaseSettings):
     jwt_secret_key: SecretStr | None = None
     jwt_algorithm: Literal["HS256", "HS384", "HS512"] = "HS256"
     jwt_expire_minutes: int = Field(default=60 * 24, gt=0)
+    # Development only: accept X-Actor (priya, rahul, ...) as a password-less sign-in. Used by the
+    # frontend on the main branch. Refused when APP_ENV=production.
+    allow_actor_header_auth: bool = False
     # Used only by scripts/set_user_passwords.py to set the demo accounts' password. Never read
     # by the running API.
     demo_user_password: SecretStr | None = None
@@ -99,6 +102,8 @@ class Settings(BaseSettings):
     def _require_jwt_secret_in_production(self) -> "Settings":
         if self.app_env == "production" and self.jwt_secret_key is None:
             raise ValueError("JWT_SECRET_KEY must be set when APP_ENV=production")
+        if self.app_env == "production" and self.allow_actor_header_auth:
+            raise ValueError("ALLOW_ACTOR_HEADER_AUTH must be false when APP_ENV=production")
         if self.jwt_secret_key is not None and len(self.jwt_secret_key.get_secret_value()) < 32:
             raise ValueError("JWT_SECRET_KEY must be at least 32 characters")
         return self

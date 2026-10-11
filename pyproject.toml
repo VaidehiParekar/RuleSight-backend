@@ -51,8 +51,11 @@ extend-immutable-calls = [
 ]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/**" = ["S101"]
-"alembic/versions/**" = ["E501"]
+# SQL is written as readable multi-line strings; wrapping them at 100 columns hurts review.
+"alembic/**" = ["E501"]
+"scripts/**" = ["E501"]
+"app/**" = ["E501"]
+"tests/**" = ["S101", "E501"]
 
 [tool.mypy]
 python_version = "3.12"

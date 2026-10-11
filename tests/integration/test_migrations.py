@@ -11,10 +11,10 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 import pytest
-from alembic import command
 from alembic.config import Config
 from sqlalchemy import create_engine, text
 
+from alembic import command
 from app.core.config import get_settings
 
 pytestmark = pytest.mark.integration

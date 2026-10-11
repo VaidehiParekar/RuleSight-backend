@@ -3,7 +3,8 @@
 Pure functions without database or external dependencies, matching TEAM_PLAN_ONE_NIGHT.md §6 and §7.
 """
 
-from typing import Any, Literal
+from typing import Literal
+
 from app.schemas.domain import (
     Applicability,
     Coverage,

@@ -1,7 +1,7 @@
 """Authentication, JWT token lifecycle, password hashing, and RBAC permissions."""
 
 import secrets
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from functools import lru_cache
 from typing import Any
 
@@ -126,12 +126,12 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
 def create_access_token(data: dict[str, Any], expires_delta: timedelta | None = None) -> str:
     """Generates a signed JWT access token."""
     to_encode = data.copy()
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     if expires_delta:
         expire = now + expires_delta
     else:
         expire = now + timedelta(minutes=get_settings().jwt_expire_minutes)
-    
+
     to_encode.update({"iat": now, "exp": expire})
     encoded_jwt = jwt.encode(to_encode, _signing_key(), algorithm=get_settings().jwt_algorithm)
     return encoded_jwt
