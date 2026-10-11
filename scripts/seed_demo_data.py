@@ -5,6 +5,12 @@ Nova Trust bank policies, Risk Control Matrix, and audit evidence into PostgreSQ
 via raw parameterized SQL INSERT statements.
 """
 
+import sys
+from pathlib import Path
+
+# Allow running directly from scripts folder or repository root
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
 from sqlalchemy import create_engine, text
 
 from app.core.config import get_settings
