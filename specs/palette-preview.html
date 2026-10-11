@@ -1,0 +1,273 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>RuleSight palette preview</title>
+<style>
+/* Tokens from UI_DESIGN_SPEC.md section 3. Light is the default; dark applies by OS or data-theme. */
+:root {
+  color-scheme: light;
+  --background: #FAF5EE; --card: #FFFDF9; --sunken: #F3EADF; --raised: #FFFFFF;
+  --foreground: #2B2130; --muted-foreground: #6B5A66; --border: #E8DCCF; --input: #94806F;
+  --primary: #574964; --primary-hover: #463A51; --primary-foreground: #FFFDF9; --primary-tint: #EDE6F0;
+  --accent: #603F26; --accent-strong: #9F8383;
+  --highlight: #C8AAAA; --highlight-foreground: #2B2130; --ring: #574964;
+  --critical: #A33A2C; --critical-tint: #F8E4DF;
+  --warning: #8F5A0A; --warning-tint: #F8EBD3;
+  --success: #3F6E46; --success-tint: #E3EEE0;
+  --neutral-status: #7E6464; --neutral-tint: #F1E8E6;
+  --chart-cat-1: #6B4E8C; --chart-cat-2: #C9692F; --chart-cat-3: #0083A0; --chart-cat-4: #B8862A; --chart-cat-5: #B4527A;
+  --chart-seq-1: #BFA8D2; --chart-seq-2: #9F84BC; --chart-seq-3: #7E62A0; --chart-seq-4: #604783; --chart-seq-5: #432F5E;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --background: #17121C; --card: #201927; --sunken: #140F18; --raised: #2A2232;
+    --foreground: #F3E9DF; --muted-foreground: #B3A3AD; --border: #352B3D; --input: #7A6A85;
+    --primary: #C9B6D9; --primary-hover: #DACBE6; --primary-foreground: #17121C; --primary-tint: #2E2538;
+    --accent: #C8AAAA; --accent-strong: #9F8383;
+    --highlight: #574964; --highlight-foreground: #FFEAC5; --ring: #FFEAC5;
+    --critical: #EE8A78; --critical-tint: #3A1F1D;
+    --warning: #E3B05A; --warning-tint: #38291A;
+    --success: #93C48F; --success-tint: #1C2B1F;
+    --neutral-status: #C8AAAA; --neutral-tint: #2C2329;
+    --chart-cat-1: #9A7BD3; --chart-cat-2: #D5733A; --chart-cat-3: #0096A8; --chart-cat-4: #B8892A; --chart-cat-5: #CF6C96;
+    --chart-seq-1: #5E4B78; --chart-seq-2: #7A639B; --chart-seq-3: #9880BC; --chart-seq-4: #B7A2D8; --chart-seq-5: #D8CAEC;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --background: #17121C; --card: #201927; --sunken: #140F18; --raised: #2A2232;
+  --foreground: #F3E9DF; --muted-foreground: #B3A3AD; --border: #352B3D; --input: #7A6A85;
+  --primary: #C9B6D9; --primary-hover: #DACBE6; --primary-foreground: #17121C; --primary-tint: #2E2538;
+  --accent: #C8AAAA; --accent-strong: #9F8383;
+  --highlight: #574964; --highlight-foreground: #FFEAC5; --ring: #FFEAC5;
+  --critical: #EE8A78; --critical-tint: #3A1F1D;
+  --warning: #E3B05A; --warning-tint: #38291A;
+  --success: #93C48F; --success-tint: #1C2B1F;
+  --neutral-status: #C8AAAA; --neutral-tint: #2C2329;
+  --chart-cat-1: #9A7BD3; --chart-cat-2: #D5733A; --chart-cat-3: #0096A8; --chart-cat-4: #B8892A; --chart-cat-5: #CF6C96;
+  --chart-seq-1: #5E4B78; --chart-seq-2: #7A639B; --chart-seq-3: #9880BC; --chart-seq-4: #B7A2D8; --chart-seq-5: #D8CAEC;
+}
+
+* { box-sizing: border-box; }
+body {
+  margin: 0; min-height: 100vh; background: var(--background); color: var(--foreground);
+  font-family: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif; font-size: 14px; line-height: 22px;
+  font-variant-numeric: tabular-nums; -webkit-font-smoothing: antialiased;
+}
+:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+.wrap { max-width: 1040px; margin: 0 auto; padding: 32px 16px 64px; }
+.serif { font-family: "Source Serif 4", Georgia, serif; }
+.mono { font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: 12.5px; color: var(--muted-foreground); }
+.eyebrow { font-size: 11px; line-height: 16px; font-weight: 600; text-transform: uppercase; letter-spacing: .06em; color: var(--muted-foreground); }
+h1 { font-family: "Source Serif 4", Georgia, serif; font-size: 30px; line-height: 36px; font-weight: 600; letter-spacing: -.01em; margin: 4px 0 6px; }
+h2 { font-family: "Source Serif 4", Georgia, serif; font-size: 20px; line-height: 28px; font-weight: 600; margin: 0 0 12px; }
+h3 { font-size: 15px; line-height: 22px; font-weight: 600; margin: 0 0 8px; }
+p { margin: 0 0 8px; }
+section { border-top: 1px solid var(--border); padding: 24px 0; }
+.bar-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.toggle { display: inline-flex; border: 1px solid var(--input); border-radius: 4px; overflow: hidden; }
+.toggle button { font: inherit; font-size: 13px; padding: 6px 12px; background: var(--card); color: var(--foreground); border: 0; cursor: pointer; }
+.toggle button[aria-pressed="true"] { background: var(--primary); color: var(--primary-foreground); }
+.grid { display: grid; gap: 12px; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
+.swatch { border: 1px solid var(--border); border-radius: 6px; overflow: hidden; background: var(--card); }
+.swatch .chip { height: 56px; }
+.swatch .meta { padding: 8px 10px; font-size: 12.5px; line-height: 18px; }
+.sheet { background: var(--card); border: 1px solid var(--border); border-radius: 6px; padding: 16px; }
+.quote { background: var(--sunken); border-left: 3px solid var(--accent-strong); border-radius: 0 4px 4px 0; padding: 14px 16px; margin: 0; }
+.quote .text { font-family: "Source Serif 4", Georgia, serif; font-size: 16px; line-height: 27px; max-width: 68ch; }
+mark { background: var(--highlight); color: var(--highlight-foreground); padding: 0 2px; border-radius: 2px; }
+.tag { display: inline-flex; align-items: center; gap: 6px; height: 20px; padding: 0 8px; border-radius: 3px; font-size: 12px; font-weight: 500; }
+.t-critical { background: var(--critical-tint); color: var(--critical); }
+.t-warning { background: var(--warning-tint); color: var(--warning); }
+.t-success { background: var(--success-tint); color: var(--success); }
+.t-neutral { background: var(--neutral-tint); color: var(--neutral-status); }
+.t-primary { background: var(--primary-tint); color: var(--primary); }
+.t-accent { background: transparent; color: var(--accent); border: 1px solid var(--accent); }
+.chip-p { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 20px; border-radius: 3px; font: 600 12px/1 "IBM Plex Mono", monospace; border-left: 2px solid; }
+.btn { font: inherit; font-weight: 500; font-size: 13px; height: 34px; padding: 0 14px; border-radius: 4px; cursor: pointer; border: 1px solid transparent; }
+.btn-primary { background: var(--primary); color: var(--primary-foreground); }
+.btn-primary:hover { background: var(--primary-hover); }
+.btn-secondary { background: var(--card); color: var(--foreground); border-color: var(--input); }
+.btn-accent { background: transparent; color: var(--accent); border-color: var(--accent); }
+.btn-danger { background: transparent; color: var(--critical); border-color: var(--critical); }
+.bar-row { display: grid; grid-template-columns: 170px 1fr 48px; gap: 12px; align-items: center; margin: 6px 0; }
+.track { height: 14px; background: var(--sunken); border-radius: 0 3px 3px 0; overflow: hidden; }
+.fill { height: 100%; border-radius: 0 3px 3px 0; }
+.stack { display: flex; height: 18px; gap: 2px; }
+.stack span { display: block; height: 100%; }
+.trace { border-left: 2px solid var(--border); margin-left: 6px; padding-left: 18px; }
+.trace .node { position: relative; padding-bottom: 14px; }
+.trace .node::before { content: ""; position: absolute; left: -25px; top: 4px; width: 10px; height: 10px; border-radius: 50%; }
+.legend { display: flex; flex-wrap: wrap; gap: 14px; font-size: 12.5px; color: var(--muted-foreground); }
+.legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 6px; vertical-align: -1px; }
+.themes { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+@media (max-width: 640px) { .themes { grid-template-columns: 1fr; } .bar-row { grid-template-columns: 110px 1fr 40px; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="bar-top">
+    <div>
+      <div class="eyebrow">RuleSight · UI design preview</div>
+      <h1>Aubergine &amp; Parchment</h1>
+      <p class="mono">Companion to specs/UI_DESIGN_SPEC.md. Values are the spec's tokens, not final product code.</p>
+    </div>
+    <div class="toggle" role="group" aria-label="Theme">
+      <button type="button" data-set="system" aria-pressed="true">System</button>
+      <button type="button" data-set="light" aria-pressed="false">Light</button>
+      <button type="button" data-set="dark" aria-pressed="false">Dark</button>
+    </div>
+  </div>
+
+  <section>
+    <div class="eyebrow">01 · Brand and surfaces</div>
+    <h2>Palette</h2>
+    <div class="grid">
+      <div class="swatch"><div class="chip" style="background:#574964"></div><div class="meta"><b>Primary plum</b><br><span class="mono">#574964</span></div></div>
+      <div class="swatch"><div class="chip" style="background:#C8AAAA"></div><div class="meta"><b>Highlight rose ash</b><br><span class="mono">#C8AAAA</span></div></div>
+      <div class="swatch"><div class="chip" style="background:#603F26"></div><div class="meta"><b>Accent dark coffee</b><br><span class="mono">#603F26</span></div></div>
+      <div class="swatch"><div class="chip" style="background:#FAF5EE"></div><div class="meta"><b>Parchment</b><br><span class="mono">#FAF5EE</span></div></div>
+      <div class="swatch"><div class="chip" style="background:#FFFDF9"></div><div class="meta"><b>Card</b><br><span class="mono">#FFFDF9</span></div></div>
+      <div class="swatch"><div class="chip" style="background:#17121C"></div><div class="meta"><b>Aubergine black</b><br><span class="mono">#17121C</span></div></div>
+    </div>
+  </section>
+
+  <section>
+    <div class="eyebrow">02 · Type</div>
+    <h2>Typefaces</h2>
+    <div class="themes">
+      <div class="sheet">
+        <div class="eyebrow">Source Serif 4 · display and regulation text</div>
+        <h1 style="font-size:30px">Compliance overview</h1>
+        <p class="serif" style="font-size:16px;line-height:27px">Periodic updation must occur at least once in every two years for high risk customers.</p>
+      </div>
+      <div class="sheet">
+        <div class="eyebrow">IBM Plex Sans · UI and tables · IBM Plex Mono · references</div>
+        <p style="font-size:14px">Obligations 19 · Coverage 7 of 18 applicable · Open gaps 12</p>
+        <p class="mono">OB-07 · para 38 · CTL-05 · EVD-02 · run 7f3a</p>
+        <p class="mono">Eyebrow and mono labels stay in muted ink.</p>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="eyebrow">03 · Quote block (the signature element)</div>
+    <h2>Regulation clause</h2>
+    <blockquote class="quote" style="margin:0">
+      <div class="text">“…periodic updation… at least once in every <mark>two years</mark> for high risk customers…”</div>
+      <div class="mono" style="margin-top:10px">RBI KYC Master Direction 2016 · para 38 · <span class="tag t-success">Verbatim ✓</span></div>
+    </blockquote>
+  </section>
+
+  <section>
+    <div class="eyebrow">04 · Status</div>
+    <h2>Badges and priority</h2>
+    <p><span class="chip-p t-critical" style="border-color:var(--critical);background:var(--critical-tint);color:var(--critical)">P1</span>
+       <span class="chip-p" style="border-color:var(--warning);background:var(--warning-tint);color:var(--warning)">P2</span>
+       <span class="chip-p" style="border-color:var(--neutral-status);background:var(--neutral-tint);color:var(--neutral-status)">P3</span></p>
+    <p style="margin-top:12px">
+      <span class="tag t-success">✓ Covered</span>
+      <span class="tag t-warning">◐ Partial</span>
+      <span class="tag t-critical">✕ Missing</span>
+      <span class="tag t-neutral">? Insufficient evidence</span>
+      <span class="tag t-neutral">Not applicable</span>
+      <span class="tag t-accent">Fictional bank</span>
+      <span class="tag t-primary">Suggested by agent</span>
+      <span class="tag t-critical" style="border:1px solid var(--critical);background:transparent">Withdrawn 2 Oct 2026</span>
+    </p>
+    <p style="margin-top:12px">
+      <button class="btn btn-primary" type="button">Approve remediation</button>
+      <button class="btn btn-secondary" type="button">Edit</button>
+      <button class="btn btn-accent" type="button">Upload document</button>
+      <button class="btn btn-danger" type="button">Reject</button>
+    </p>
+  </section>
+
+  <section>
+    <div class="eyebrow">05 · Charts</div>
+    <h2>Categorical identity and sequential magnitude</h2>
+    <div class="legend" style="margin-bottom:12px">
+      <span><i style="background:var(--chart-cat-1)"></i>Clause</span>
+      <span><i style="background:var(--chart-cat-2)"></i>Obligation</span>
+      <span><i style="background:var(--chart-cat-3)"></i>Control</span>
+      <span><i style="background:var(--chart-cat-4)"></i>Evidence</span>
+      <span><i style="background:var(--chart-cat-5)"></i>Gap</span>
+    </div>
+    <div class="bar-row"><span>Coverage (19 obligations)</span>
+      <div class="stack" style="height:16px">
+        <span style="flex:7;background:var(--chart-seq-5)" title="covered 7"></span>
+        <span style="flex:7;background:var(--chart-seq-4)" title="partial 7"></span>
+        <span style="flex:2;background:var(--chart-seq-2)" title="insufficient 2"></span>
+        <span style="flex:3;background:var(--chart-seq-1)" title="missing 3"></span>
+      </div><span class="mono">19</span></div>
+    <p class="mono" style="margin:4px 0 16px">covered 7 · partial 7 · insufficient 2 · missing 3 (illustrative, from expected_mappings_RBI.csv)</p>
+    <div class="bar-row"><span>Gaps, design + operating</span>
+      <div class="track"><div class="fill" style="width:60%;background:var(--chart-cat-2)"></div></div><span class="mono">6</span></div>
+    <div class="bar-row"><span>Gaps, missing</span>
+      <div class="track"><div class="fill" style="width:20%;background:var(--chart-cat-5)"></div></div><span class="mono">2</span></div>
+    <div class="bar-row"><span>Accuracy: recall</span>
+      <div class="track"><div class="fill" style="width:89%;background:var(--chart-seq-4)"></div></div><span class="mono">0.89</span></div>
+    <p class="mono">Placeholder values. Real accuracy comes only from /eval/latest.</p>
+  </section>
+
+  <section>
+    <div class="eyebrow">06 · Trace spine</div>
+    <h2>Gap trace, first two sections</h2>
+    <div class="trace">
+      <div class="node"><div class="eyebrow">§1 Regulation clause</div>
+        <span style="position:absolute;left:-25px;top:4px;width:10px;height:10px;border-radius:50%;background:var(--chart-cat-1)"></span>
+        <div class="mono">RBI KYC Master Direction 2016 · para 38</div></div>
+      <div class="node"><div class="eyebrow">§2 Obligation · OB-07</div>
+        <span style="position:absolute;left:-25px;top:4px;width:10px;height:10px;border-radius:50%;background:var(--chart-cat-2)"></span>
+        <div>Bank must update KYC for High risk every 2 years. <span class="tag t-neutral">Applicable</span></div></div>
+      <div class="node"><div class="eyebrow">§3 Control · CTL-05</div>
+        <span style="position:absolute;left:-25px;top:4px;width:10px;height:10px;border-radius:50%;background:var(--chart-cat-3)"></span>
+        <div>Periodic KYC updation, Compliance – KYC Unit</div></div>
+    </div>
+  </section>
+
+  <section>
+    <div class="eyebrow">07 · Surfaces</div>
+    <h2>Sheet and table row</h2>
+    <div class="sheet" style="padding:0">
+      <div style="background:var(--sunken);padding:8px 12px" class="eyebrow">Gap · Priority · Type · Risk</div>
+      <div style="padding:10px 12px;border-top:1px solid var(--border);display:grid;grid-template-columns:44px 1fr 150px 60px;gap:10px;align-items:center">
+        <span class="chip-p" style="border-color:var(--critical);background:var(--critical-tint);color:var(--critical)">P1</span>
+        <span>Periodic KYC re-verification cycle longer than RBI requires</span>
+        <span class="tag t-warning">Design + operating</span>
+        <span style="text-align:right">6</span>
+      </div>
+      <div style="padding:10px 12px;border-top:1px solid var(--border);border-left:2px solid var(--primary);background:var(--primary-tint);display:grid;grid-template-columns:44px 1fr 150px 60px;gap:10px;align-items:center">
+        <span class="chip-p" style="border-color:var(--warning);background:var(--warning-tint);color:var(--warning)">P2</span>
+        <span>Selected row: plum bar and primary tint</span>
+        <span class="tag t-neutral">Insufficient info</span>
+        <span style="text-align:right">4</span>
+      </div>
+    </div>
+  </section>
+
+</div>
+<script>
+(function () {
+  var root = document.documentElement;
+  var buttons = document.querySelectorAll('[data-set]');
+  function apply(mode) {
+    try {
+      if (mode === 'system') root.removeAttribute('data-theme');
+      else root.setAttribute('data-theme', mode);
+      localStorage.setItem('rulesight-preview-theme', mode);
+    } catch (e) { /* storage can be blocked; the toggle still works */ }
+    buttons.forEach(function (b) { b.setAttribute('aria-pressed', String(b.dataset.set === mode)); });
+  }
+  buttons.forEach(function (b) { b.addEventListener('click', function () { apply(b.dataset.set); }); });
+  var saved = null;
+  try { saved = localStorage.getItem('rulesight-preview-theme'); } catch (e) { saved = null; }
+  apply(saved || 'system');
+})();
+</script>
+</body>
+</html>
