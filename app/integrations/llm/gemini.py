@@ -9,7 +9,7 @@ from google.genai import types
 from google.genai.errors import APIError
 from pydantic import BaseModel, ValidationError
 
-from app.integrations.llm.base import LLMProviderError, SchemaT
+from app.integrations.llm.base import LLMProviderError, SchemaT, Usage
 from app.integrations.llm.cache import FileCache, LLMCache, MemoryCache
 
 logger = logging.getLogger("app.llm.gemini")
@@ -39,6 +39,7 @@ class GeminiProvider:
         cache: LLMCache | None = None,
         client: genai.Client | None = None,
         backoff_seconds: float = 2.0,
+        transport_attempts: int = MAX_TRANSPORT_ATTEMPTS,
     ) -> None:
         if not model:
             raise ValueError("a Gemini model name is required (set LLM_MODEL)")
@@ -46,6 +47,14 @@ class GeminiProvider:
         self._cache: LLMCache = cache or MemoryCache()
         self._client = client or genai.Client(api_key=api_key)
         self._backoff_seconds = backoff_seconds
+        self._transport_attempts = max(1, transport_attempts)
+        self._cache_hits = 0
+        self._input_tokens = 0
+        self._output_tokens = 0
+
+    def usage(self) -> Usage:
+        """Running totals since the provider was built: cache hits and tokens billed."""
+        return Usage(self._cache_hits, self._input_tokens, self._output_tokens)
 
     def _cache_key(self, prompt: str, schema: type[BaseModel]) -> str:
         material = "\n".join(
@@ -65,7 +74,7 @@ class GeminiProvider:
 
     def _generate(self, prompt: str, schema: type[BaseModel], timeout_seconds: float) -> Any:
         """Calls the API, retrying transient failures (rate limit, overload) with backoff."""
-        for transport_attempt in range(1, MAX_TRANSPORT_ATTEMPTS + 1):
+        for transport_attempt in range(1, self._transport_attempts + 1):
             try:
                 return self._client.models.generate_content(
                     model=self._model,
@@ -74,7 +83,7 @@ class GeminiProvider:
                 )
             except APIError as exc:
                 transient = exc.code in TRANSIENT_CODES
-                if transient and transport_attempt < MAX_TRANSPORT_ATTEMPTS:
+                if transient and transport_attempt < self._transport_attempts:
                     logger.warning(
                         "transient gemini error, retrying",
                         extra={"code": exc.code, "attempt": transport_attempt},
@@ -100,13 +109,19 @@ class GeminiProvider:
         cached = self._cache.get(key)
         if cached is not None:
             try:
-                return schema.model_validate_json(cached)
+                parsed_cached = schema.model_validate_json(cached)
+                self._cache_hits += 1
+                return parsed_cached
             except ValidationError:
                 # A stale or corrupt entry is ignored and replaced by a fresh call.
                 logger.warning("ignoring unreadable cache entry", extra={"schema": schema.__name__})
 
         for attempt in range(1, MAX_ATTEMPTS + 1):
             response = self._generate(prompt, schema, timeout_seconds)
+            metadata = getattr(response, "usage_metadata", None)
+            if metadata is not None:
+                self._input_tokens += metadata.prompt_token_count or 0
+                self._output_tokens += metadata.candidates_token_count or 0
 
             raw: str = response.text or ""
             try:
@@ -128,7 +143,15 @@ def build_gemini_provider(
     api_key: str,
     model: str,
     cache_dir: Path | None,
+    transport_attempts: int = MAX_TRANSPORT_ATTEMPTS,
+    backoff_seconds: float = 2.0,
 ) -> GeminiProvider:
     """Builds the provider from settings. A file cache is used only when cache_dir is set."""
     cache: LLMCache = FileCache(cache_dir) if cache_dir is not None else MemoryCache()
-    return GeminiProvider(api_key=api_key, model=model, cache=cache)
+    return GeminiProvider(
+        api_key=api_key,
+        model=model,
+        cache=cache,
+        transport_attempts=transport_attempts,
+        backoff_seconds=backoff_seconds,
+    )

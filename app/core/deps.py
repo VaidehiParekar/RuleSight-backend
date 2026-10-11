@@ -1,96 +1,84 @@
-"""FastAPI dependencies for authentication, RBAC authorization, and actor propagation."""
+"""FastAPI dependencies for authentication, RBAC authorization, and actor propagation.
 
-from typing import Annotated, Callable
-from fastapi import Depends, Header, HTTPException, Request, status
+Every endpoint except the health probes and POST /auth/login requires a valid Bearer token
+(see ``require_permission``). There is no header-based or anonymous fallback.
+"""
+
+from collections.abc import Callable
+from typing import Annotated, Any
+
+from fastapi import Depends, Header, HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.core.actor import ActorInfo
 from app.core.auth import decode_access_token, get_role_permissions, has_permission
-from app.db.queries import get_user_by_email_sql, get_user_by_id_sql
+from app.db.queries import get_user_by_id_sql
 from app.db.session import get_session
 from app.schemas.domain import UserResponse
 
+_BEARER_PREFIX = "bearer "
 
-async def get_current_user(
-    request: Request,
+
+def _unauthorized(detail: str) -> HTTPException:
+    return HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail=detail,
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+
+
+def user_response_from_row(user_data: dict[str, Any]) -> UserResponse:
+    """Builds the public user profile (with role permissions) from a users row."""
+    role = user_data["role"]
+    return UserResponse(
+        id=user_data["id"],
+        email=user_data["email"],
+        full_name=user_data["full_name"],
+        role=role,
+        initials=user_data["initials"],
+        is_active=user_data["is_active"],
+        created_at=user_data.get("created_at"),
+        last_login_at=user_data.get("last_login_at"),
+        permissions=get_role_permissions(role),
+    )
+
+
+def role_label(role: str) -> str:
+    """Human-readable role for the audit trail, e.g. compliance_officer -> Compliance Officer."""
+    return role.replace("_", " ").title()
+
+
+def get_current_user(
     authorization: Annotated[str | None, Header()] = None,
-    x_actor: Annotated[str | None, Header()] = None,
     session: Session = Depends(get_session),
 ) -> UserResponse:
-    """Extracts the authenticated user from the Bearer token, or falls back to X-Actor."""
-    # 1. Bearer Token Authentication
-    if authorization and authorization.startswith("Bearer "):
-        token = authorization[7:].strip()
-        payload = decode_access_token(token)
-        if not payload:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid or expired authentication token.",
-                headers={"WWW-Authenticate": "Bearer"},
-            )
-        user_id = payload.get("sub")
-        if user_id:
-            user_data = get_user_by_id_sql(session, user_id)
-            if user_data:
-                role = user_data["role"]
-                return UserResponse(
-                    id=user_data["id"],
-                    email=user_data["email"],
-                    full_name=user_data["full_name"],
-                    role=role,
-                    initials=user_data["initials"],
-                    is_active=user_data["is_active"],
-                    created_at=user_data.get("created_at"),
-                    last_login_at=user_data.get("last_login_at"),
-                    permissions=get_role_permissions(role),
-                )
+    """Returns the signed-in user from the Bearer token, or raises 401."""
+    if not authorization or not authorization.lower().startswith(_BEARER_PREFIX):
+        raise _unauthorized("Sign in required.")
 
-    # 2. Backward compatibility fallback via X-Actor header
-    actor_str = (x_actor or "").strip().lower()
-    fallback_email = "priya@rulesight.bank"
-    if "rahul" in actor_str:
-        fallback_email = "rahul@rulesight.bank"
-    elif "admin" in actor_str:
-        fallback_email = "admin@rulesight.bank"
-    elif "auditor" in actor_str or "ananya" in actor_str:
-        fallback_email = "auditor@rbi.gov.in"
+    token = authorization[len(_BEARER_PREFIX):].strip()
+    payload = decode_access_token(token) if token else None
+    user_id = payload.get("sub") if payload else None
+    if not user_id:
+        raise _unauthorized("Invalid or expired authentication token.")
 
-    user_data = get_user_by_email_sql(session, fallback_email)
-    if user_data:
-        role = user_data["role"]
-        return UserResponse(
-            id=user_data["id"],
-            email=user_data["email"],
-            full_name=user_data["full_name"],
-            role=role,
-            initials=user_data["initials"],
-            is_active=user_data["is_active"],
-            created_at=user_data.get("created_at"),
-            last_login_at=user_data.get("last_login_at"),
-            permissions=get_role_permissions(role),
-        )
-
-    # In-memory emergency fallback if DB has not been seeded
-    return UserResponse(
-        id="usr-priya",
-        email="priya@rulesight.bank",
-        full_name="Priya Sharma",
-        role="compliance_officer",
-        initials="PS",
-        is_active=True,
-        permissions=get_role_permissions("compliance_officer"),
-    )
+    # Inactive users are excluded by the query: a valid signature alone is not a sign-in.
+    user_data = get_user_by_id_sql(session, str(user_id))
+    if not user_data:
+        raise _unauthorized("Invalid or expired authentication token.")
+    return user_response_from_row(user_data)
 
 
 def get_current_actor(
     current_user: Annotated[UserResponse, Depends(get_current_user)],
 ) -> ActorInfo:
-    """Provides ActorInfo for the audit trail based on authenticated user."""
-    return ActorInfo(name=current_user.full_name, role=current_user.role)
+    """Provides ActorInfo for the audit trail based on the authenticated user."""
+    return ActorInfo(name=current_user.full_name, role=role_label(current_user.role))
 
 
-def require_permission(permission: str) -> Callable:
-    """Dependency factory that verifies the authenticated user possesses a given permission."""
+def require_permission(permission: str) -> Callable[..., UserResponse]:
+    """Dependency factory: 401 without a valid token, 403 when the role lacks ``permission``."""
+
     def dependency(
         current_user: Annotated[UserResponse, Depends(get_current_user)],
     ) -> UserResponse:
@@ -98,21 +86,6 @@ def require_permission(permission: str) -> Callable:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail=f"Access denied: permission '{permission}' is required for this operation.",
-            )
-        return current_user
-
-    return dependency
-
-
-def require_roles(allowed_roles: list[str]) -> Callable:
-    """Dependency factory that checks if user's role is in the allowed roles list."""
-    def dependency(
-        current_user: Annotated[UserResponse, Depends(get_current_user)],
-    ) -> UserResponse:
-        if current_user.role not in allowed_roles:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail=f"Access denied: required role must be one of {allowed_roles}.",
             )
         return current_user
 

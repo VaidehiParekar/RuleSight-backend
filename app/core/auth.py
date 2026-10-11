@@ -1,14 +1,21 @@
 """Authentication, JWT token lifecycle, password hashing, and RBAC permissions."""
 
+import secrets
 from datetime import datetime, timedelta, timezone
+from functools import lru_cache
 from typing import Any
+
 import bcrypt
 import jwt
 
-# Fallback secret for local development / testing
-JWT_SECRET_KEY = "rulesight-super-secret-jwt-key-2026-hackathon-et-ai"
-JWT_ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24  # 24 hours
+from app.core.config import get_settings
+
+
+@lru_cache(maxsize=1)
+def _signing_key() -> str:
+    """JWT signing key from JWT_SECRET_KEY, or a random per-process key in development."""
+    configured = get_settings().jwt_secret_key
+    return configured.get_secret_value() if configured else secrets.token_urlsafe(48)
 
 
 ROLE_PERMISSIONS: dict[str, list[str]] = {
@@ -123,17 +130,17 @@ def create_access_token(data: dict[str, Any], expires_delta: timedelta | None = 
     if expires_delta:
         expire = now + expires_delta
     else:
-        expire = now + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+        expire = now + timedelta(minutes=get_settings().jwt_expire_minutes)
     
     to_encode.update({"iat": now, "exp": expire})
-    encoded_jwt = jwt.encode(to_encode, JWT_SECRET_KEY, algorithm=JWT_ALGORITHM)
+    encoded_jwt = jwt.encode(to_encode, _signing_key(), algorithm=get_settings().jwt_algorithm)
     return encoded_jwt
 
 
 def decode_access_token(token: str) -> dict[str, Any] | None:
     """Decodes and validates a JWT token."""
     try:
-        payload = jwt.decode(token, JWT_SECRET_KEY, algorithms=[JWT_ALGORITHM])
+        payload = jwt.decode(token, _signing_key(), algorithms=[get_settings().jwt_algorithm])
         return payload
     except jwt.PyJWTError:
         return None

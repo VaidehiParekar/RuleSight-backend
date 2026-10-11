@@ -1,9 +1,11 @@
 from typing import Any
+
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
-from app.core.actor import ActorInfo, get_actor, record_audit
+from app.core.actor import ActorInfo, record_audit
+from app.core.deps import get_current_actor, require_permission
 from app.core.kg import kg_candidates
 from app.db.queries import (
     get_control_sql,
@@ -12,8 +14,8 @@ from app.db.queries import (
     list_mappings_sql,
     update_mapping_status_sql,
 )
-from app.db.session import get_session
-from app.schemas.domain import Mapping, MappingStatus
+from app.db.session import get_session, write_transaction
+from app.schemas.domain import Mapping, MappingStatus, UserResponse
 
 router = APIRouter(prefix="/mappings", tags=["mappings"])
 
@@ -25,6 +27,7 @@ class MappingUpdateInput(BaseModel):
 @router.get("", response_model=list[Mapping])
 def list_mappings(
     obligation_id: str | None = Query(None),
+    _user: UserResponse = Depends(require_permission("mappings:read")),
     session: Session = Depends(get_session),
 ) -> list[Mapping]:
     """Lists obligation-to-control mappings with graph paths and critic results."""
@@ -41,13 +44,20 @@ def list_mappings(
 
 
 @router.get("/candidates/{obligation_id}", response_model=list[dict[str, Any]])
-def get_mapping_candidates(obligation_id: str) -> list[dict[str, Any]]:
-    """Returns candidate controls sharing regulatory topics with the obligation via NetworkX graph."""
+def get_mapping_candidates(
+    obligation_id: str,
+    _user: UserResponse = Depends(require_permission("mappings:read")),
+) -> list[dict[str, Any]]:
+    """Candidate controls that share a regulatory topic with the obligation (knowledge graph)."""
     return kg_candidates(obligation_id)
 
 
 @router.get("/{id}", response_model=Mapping)
-def get_mapping(id: str, session: Session = Depends(get_session)) -> Mapping:
+def get_mapping(
+    id: str,
+    _user: UserResponse = Depends(require_permission("mappings:read")),
+    session: Session = Depends(get_session),
+) -> Mapping:
     mapping = get_mapping_sql(session, id)
     if not mapping:
         raise HTTPException(status_code=404, detail="Mapping not found")
@@ -64,11 +74,12 @@ def get_mapping(id: str, session: Session = Depends(get_session)) -> Mapping:
 def update_mapping(
     id: str,
     input_data: MappingUpdateInput,
-    actor: ActorInfo = Depends(get_actor),
+    _user: UserResponse = Depends(require_permission("mappings:verify")),
+    actor: ActorInfo = Depends(get_current_actor),
     session: Session = Depends(get_session),
 ) -> Mapping:
     """Updates a mapping status (e.g. accepted/rejected) and records an audit log entry."""
-    with session.begin():
+    with write_transaction(session):
         before_mapping = get_mapping_sql(session, id)
         if not before_mapping:
             raise HTTPException(status_code=404, detail="Mapping not found")
@@ -79,7 +90,8 @@ def update_mapping(
 
         obligation = get_obligation_sql(session, updated.obligation_id)
         control = get_control_sql(session, updated.control_id)
-        entity_code = f"{obligation.code if obligation else ''} -> {control.code if control else ''}"
+        ob_code = obligation.code if obligation else ""
+        entity_code = f"{ob_code} -> {control.code if control else ''}"
 
         record_audit(
             session,

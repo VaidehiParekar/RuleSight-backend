@@ -1,20 +1,28 @@
 """Authentication endpoints for RuleSight."""
 
+import logging
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.core.actor import ActorInfo, record_audit
-from app.core.auth import create_access_token, get_role_permissions, verify_password
-from app.core.deps import get_current_user
+from app.core.auth import create_access_token, verify_password
+from app.core.deps import (
+    get_current_user,
+    require_permission,
+    role_label,
+    user_response_from_row,
+)
 from app.db.queries import (
     get_user_by_email_sql,
     list_users_sql,
     update_user_last_login_sql,
 )
-from app.db.session import get_session
+from app.db.session import get_session, write_transaction
 from app.schemas.domain import AuthResponse, LoginRequest, UserResponse
 
 router = APIRouter(prefix="/auth", tags=["auth"])
+logger = logging.getLogger("app.auth")
 
 
 @router.post("/login", response_model=AuthResponse)
@@ -39,43 +47,32 @@ def login(
 
     user_id = user["id"]
     role = user["role"]
-    update_user_last_login_sql(session, user_id)
-
-    # Issue JWT token
     token = create_access_token({
         "sub": user_id,
         "email": user["email"],
         "role": role,
     })
+    user_resp = user_response_from_row(user)
 
-    user_resp = UserResponse(
-        id=user_id,
-        email=user["email"],
-        full_name=user["full_name"],
-        role=role,
-        initials=user["initials"],
-        is_active=user["is_active"],
-        created_at=user.get("created_at"),
-        last_login_at=user.get("last_login_at"),
-        permissions=get_role_permissions(role),
-    )
+    with write_transaction(session):
+        update_user_last_login_sql(session, user_id)
+        # The audit entry is written in a savepoint: if it fails the failure is logged and the
+        # sign-in (and last_login_at) still commits.
+        try:
+            with session.begin_nested():
+                record_audit(
+                    session=session,
+                    actor=ActorInfo(name=user["full_name"], role=role_label(role)),
+                    action="Logged in to platform",
+                    entity_type="session",
+                    entity_code=user_id,
+                    before=None,
+                    after={"email": user["email"], "role": role},
+                )
+        except Exception:
+            logger.exception("Could not record the login audit entry for user %s", user_id)
 
-    # Record login audit entry
-    try:
-        record_audit(
-            session=session,
-            actor=ActorInfo(name=user["full_name"], role=role),
-            action="Logged in to platform",
-            entity_type="session",
-            entity_code=user_id,
-            before=None,
-            after={"email": user["email"], "role": role},
-        )
-        session.commit()
-    except Exception:
-        session.rollback()
-
-    return AuthResponse(access_token=token, token_type="bearer", user=user_resp)
+    return AuthResponse(access_token=token, token_type="bearer", user=user_resp)  # noqa: S106
 
 
 @router.get("/me", response_model=UserResponse)
@@ -87,22 +84,9 @@ def get_me(
 
 
 @router.get("/users", response_model=list[UserResponse])
-def list_demo_users(
+def list_users(
+    _user: UserResponse = Depends(require_permission("users:manage")),
     session: Session = Depends(get_session),
 ) -> list[UserResponse]:
-    """Returns available users for demo persona switching and admin inspection."""
-    users = list_users_sql(session)
-    return [
-        UserResponse(
-            id=u["id"],
-            email=u["email"],
-            full_name=u["full_name"],
-            role=u["role"],
-            initials=u["initials"],
-            is_active=u["is_active"],
-            created_at=u.get("created_at"),
-            last_login_at=u.get("last_login_at"),
-            permissions=get_role_permissions(u["role"]),
-        )
-        for u in users
-    ]
+    """Lists all user accounts. Administrators only."""
+    return [user_response_from_row(u) for u in list_users_sql(session)]

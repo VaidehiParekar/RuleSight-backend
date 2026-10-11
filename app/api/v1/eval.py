@@ -1,24 +1,33 @@
-from datetime import datetime
-from fastapi import APIRouter
-from app.schemas.domain import EvalMetric, EvalReport
+import logging
+
+from fastapi import APIRouter, Depends
+from pydantic import ValidationError
+
+from app.core.config import get_settings
+from app.core.deps import require_permission
+from app.schemas.domain import EvalReport, UserResponse
 
 router = APIRouter(prefix="/eval", tags=["evaluation"])
+logger = logging.getLogger("app.eval")
 
 
 @router.get("/latest", response_model=EvalReport)
-def get_latest_eval() -> EvalReport:
-    """Returns measured accuracy metrics against the ground-truth benchmark (19 obligations, 12 gaps)."""
+def get_latest_eval(
+    _user: UserResponse = Depends(require_permission("eval:read")),
+) -> EvalReport:
+    """Returns the latest measured evaluation report (EVAL_REPORT_PATH), never invented numbers.
+
+    Without a report file the response says so (is_mock=true, no metrics) instead of guessing.
+    """
+    path = get_settings().eval_report_path
+    if path is not None and path.is_file():
+        try:
+            return EvalReport.model_validate_json(path.read_text(encoding="utf-8"))
+        except (OSError, ValidationError):
+            logger.exception("The evaluation report at EVAL_REPORT_PATH could not be read")
     return EvalReport(
-        is_mock=False,
-        scored_at=datetime.now().isoformat(),
-        method="Measured against demo_data/3_answer_key/expected_mappings_RBI.csv and ANSWER_KEY.md",
-        metrics=[
-            EvalMetric(key="obligation_recall", label="Obligation recall", value=1.0),
-            EvalMetric(key="obligation_precision", label="Obligation precision", value=0.95),
-            EvalMetric(key="mapping_accuracy", label="Mapping accuracy", value=0.90),
-            EvalMetric(key="gap_recall", label="Gap recall", value=1.0),
-            EvalMetric(key="gap_type_accuracy", label="Gap type accuracy", value=1.0),
-            EvalMetric(key="change_detection", label="Change detection", value=1.0),
-            EvalMetric(key="citation_validity", label="Citation validity", value=1.0),
-        ],
+        is_mock=True,
+        scored_at=None,
+        method="No measured evaluation report is available yet.",
+        metrics=[],
     )

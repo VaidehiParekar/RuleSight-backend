@@ -1,3 +1,4 @@
+import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
@@ -8,10 +9,13 @@ from app import __version__
 from app.api.v1.router import api_v1_router
 from app.core.config import Settings, get_settings
 from app.core.errors import register_exception_handlers
+from app.core.kg import rebuild_kg
 from app.core.logging import configure_logging
 from app.core.middleware import RequestContextMiddleware
 from app.core.security import SecurityHeadersMiddleware
 from app.db.session import create_engine_for, create_session_factory
+
+logger = logging.getLogger("app.startup")
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
@@ -29,11 +33,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         session_factory = create_session_factory(engine)
         app.state.session_factory = session_factory
         try:
-            from app.core.kg import rebuild_kg
             with session_factory() as session:
                 rebuild_kg(session)
         except Exception:
-            pass
+            # The API still starts (the graph is rebuilt on demand), but the failure is visible.
+            logger.exception("Could not build the knowledge graph at startup")
         try:
             yield
         finally:
@@ -58,7 +62,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         allow_origins=[settings.frontend_origin],
         allow_credentials=False,
         allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
-        allow_headers=["Content-Type", "X-Request-ID", "X-Actor"],
+        allow_headers=["Authorization", "Content-Type", "X-Request-ID"],
         expose_headers=["X-Request-ID"],
     )
     app.add_middleware(RequestContextMiddleware)

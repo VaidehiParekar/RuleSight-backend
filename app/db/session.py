@@ -1,4 +1,5 @@
 from collections.abc import Iterator
+from contextlib import contextmanager
 from typing import Annotated
 
 from fastapi import Depends, Request
@@ -31,3 +32,18 @@ def get_session(request: Request) -> Iterator[Session]:
 
 
 DbSession = Annotated[Session, Depends(get_session)]
+
+
+@contextmanager
+def write_transaction(session: Session) -> Iterator[Session]:
+    """Commits on success and rolls back on any error.
+
+    Works whether or not a read earlier in the request (for example the auth dependency) has
+    already started a transaction, which makes ``session.begin()`` raise.
+    """
+    try:
+        yield session
+        session.commit()
+    except BaseException:
+        session.rollback()
+        raise

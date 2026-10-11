@@ -1,31 +1,19 @@
+"""Audit-trail helpers. The actor always comes from the signed-in user (app.core.deps)."""
+
 import json
 import uuid
-from typing import Annotated, Any
-from fastapi import Header, Request
+from typing import Any
+
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 
 class ActorInfo:
+    """Name and role recorded on an audit entry."""
+
     def __init__(self, name: str, role: str) -> None:
         self.name = name
         self.role = role
-
-
-def get_actor(
-    x_actor: Annotated[str | None, Header()] = None,
-) -> ActorInfo:
-    """Extracts actor details from X-Actor header or falls back to sensible defaults."""
-    if not x_actor:
-        return ActorInfo(name="Priya Sharma", role="Compliance Officer")
-    
-    actor_str = x_actor.strip()
-    actor_lower = actor_str.lower()
-    if "rahul" in actor_lower:
-        return ActorInfo(name="Rahul Mehta", role="Analyst")
-    if "priya" in actor_lower:
-        return ActorInfo(name="Priya Sharma", role="Compliance Officer")
-    return ActorInfo(name=actor_str, role="Officer")
 
 
 def record_audit(

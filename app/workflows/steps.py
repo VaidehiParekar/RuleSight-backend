@@ -54,6 +54,7 @@ class ObligationInput:
     clause_ref: str
     topic: str
     text: str
+    applicability: str = "applicable"
 
 
 @dataclass(frozen=True)

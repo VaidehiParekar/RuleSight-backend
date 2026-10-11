@@ -1,5 +1,7 @@
-from typing import Any, Literal
-from pydantic import BaseModel, ConfigDict, Field
+import json
+from typing import Literal
+
+from pydantic import BaseModel, ConfigDict, Field, PrivateAttr, field_validator
 
 Priority = Literal["P1", "P2", "P3"]
 GapType = Literal["missing", "design", "operating", "design_operating", "insufficient_info"]
@@ -83,7 +85,8 @@ class Control(BaseModel):
     automation: str = "Manual"
     source_document: str = ""
     source_section: str = ""
-    source_quote: str | None = None
+    # Internal only (not in the UI contract).
+    source_quote: str | None = Field(default=None, exclude=True)
     evidence_expected: str = ""
     rbi_reference: str = ""
     topic: str
@@ -119,7 +122,7 @@ class Mapping(BaseModel):
 class Assessment(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
-    id: str | None = None
+    id: str | None = Field(default=None, exclude=True)
     obligation_id: str
     design: DesignAssessment
     design_note: str
@@ -152,7 +155,8 @@ class Gap(BaseModel):
     risk_score: float
     priority: Priority
     status: GapStatus = "potential"
-    dismissed_reason: str | None = None
+    # Stored with the gap; the reason is shown through the audit trail, not on the gap.
+    dismissed_reason: str | None = Field(default=None, exclude=True)
 
 
 class Remediation(BaseModel):
@@ -167,21 +171,37 @@ class Remediation(BaseModel):
     status: RemediationStatus = "draft"
 
 
-class RegulatoryChange(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
+class ChangeSide(BaseModel):
+    """One side of a clause comparison: where it is and its verbatim text."""
 
+    ref: str
+    text: str
+
+
+class ChangeImpact(BaseModel):
+    """Codes of the obligations, controls and gaps a change affects."""
+
+    obligations: list[str] = Field(default_factory=list)
+    controls: list[str] = Field(default_factory=list)
+    gaps: list[str] = Field(default_factory=list)
+
+
+class RegulatoryChange(BaseModel):
     id: str
-    old_document_id: str
-    new_document_id: str
-    clause_ref: str
+    code: str
     change_type: ChangeType
     title: str
-    old_text: str | None = None
-    new_text: str | None = None
     summary: str
     significance: Significance
+    before: ChangeSide | None = None
+    after: ChangeSide | None = None
+    # Phrases in `before` that were removed and in `after` that were added.
+    removed_phrases: list[str] = Field(default_factory=list)
+    added_phrases: list[str] = Field(default_factory=list)
     carried_over: list[str] = Field(default_factory=list)
-    impact: dict[str, Any] = Field(default_factory=dict)
+    impact: ChangeImpact = Field(default_factory=ChangeImpact)
+    # Clause in the new version, used for knowledge-graph impact. Not part of the API response.
+    _clause_ref: str | None = PrivateAttr(default=None)
 
 
 class MissingCircular(BaseModel):
@@ -211,8 +231,21 @@ class AuditEntry(BaseModel):
     entity_type: str
     entity_code: str
     reason: str | None = None
-    before: dict[str, Any] | None = None
-    after: dict[str, Any] | None = None
+    before: dict[str, str] | None = None
+    after: dict[str, str] | None = None
+
+    @field_validator("before", "after", mode="before")
+    @classmethod
+    def _stringify_values(cls, value: object) -> object:
+        # The UI renders before/after as text. Numbers and nested values are stored as JSON.
+        if isinstance(value, str):
+            value = json.loads(value)
+        if isinstance(value, dict):
+            return {
+                str(k): v if isinstance(v, str) else json.dumps(v, default=str)
+                for k, v in value.items()
+            }
+        return value
 
 
 class RunNode(BaseModel):
@@ -235,7 +268,7 @@ class AgentRun(BaseModel):
     started_at: str
     trigger: str
     cache_hits: int
-    status: str
+    status: Literal["queued", "running", "done", "failed"]
     nodes: list[RunNode] = Field(default_factory=list)
 
 
@@ -252,19 +285,54 @@ class GapTrace(BaseModel):
     audit: list[AuditEntry] = Field(default_factory=list)
 
 
+class CoverageCounts(BaseModel):
+    covered: int = 0
+    partial: int = 0
+    insufficient_info: int = 0
+    none: int = 0
+
+
+class PriorityCounts(BaseModel):
+    P1: int = 0
+    P2: int = 0
+    P3: int = 0
+
+
+class GapTypeCounts(BaseModel):
+    gap_type: GapType
+    counts: PriorityCounts
+
+
+class NextDeadline(BaseModel):
+    label: str
+    date: str
+    days_remaining: int
+    context: str
+
+
+class ReviewCounts(BaseModel):
+    obligations_suggested: int
+    obligations_accepted: int
+    obligations_edited: int
+    obligations_rejected: int
+    mappings_to_review: int
+    quotes_verified: int
+    quotes_total: int
+
+
 class DashboardSummary(BaseModel):
     obligations_total: int
     obligations_applicable: int
     obligations_not_applicable: int
-    coverage: dict[str, int]
+    coverage: CoverageCounts
     open_gaps: int
-    gaps_by_priority: dict[str, int]
-    gaps_by_type: list[dict[str, Any]]
+    gaps_by_priority: PriorityCounts
+    gaps_by_type: list[GapTypeCounts]
     risk_exposure: float
     remediation_approved: int
     remediation_total: int
-    next_deadline: dict[str, Any]
-    review: dict[str, Any]
+    next_deadline: NextDeadline
+    review: ReviewCounts
     critic_retries: int
     llm_calls: int
     last_run_at: str
@@ -323,7 +391,7 @@ class LoginRequest(BaseModel):
 
 class AuthResponse(BaseModel):
     access_token: str
-    token_type: str = "bearer"
+    token_type: str = "bearer"  # noqa: S105 - the OAuth2 token type, not a secret
     user: UserResponse
 
 

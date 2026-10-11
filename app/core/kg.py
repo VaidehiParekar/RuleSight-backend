@@ -5,6 +5,7 @@ PostgreSQL remains the sole source of truth.
 """
 
 from typing import Any
+
 import networkx as nx
 from sqlalchemy import text
 from sqlalchemy.orm import Session
@@ -113,7 +114,9 @@ def rebuild_kg(session: Session) -> None:
 
     for r in rem_rows:
         rem_id = r["id"]
-        g.add_node(rem_id, type="remediation", label=f"Fix {r['gap_id'].upper()}", detail=r["action"])
+        g.add_node(
+            rem_id, type="remediation", label=f"Fix {r['gap_id'].upper()}", detail=r["action"]
+        )
         if g.has_node(r["gap_id"]):
             g.add_edge(r["gap_id"], rem_id, type="REMEDIATED_BY")
 
@@ -164,6 +167,18 @@ def kg_impact(clause_ref: str) -> list[str]:
                         if gap_edge.get("type") == "ON":
                             affected.append(gap_id)
     return affected
+
+
+def kg_impact_codes(clause_ref: str) -> dict[str, list[str]]:
+    """Codes of the obligations and gaps affected by a clause change, grouped by node type."""
+    grouped: dict[str, list[str]] = {"obligations": [], "gaps": []}
+    for node_id in kg_impact(clause_ref):
+        data = _graph.nodes[node_id]
+        key = f"{data.get('type')}s"
+        label = data.get("label", node_id)
+        if key in grouped and label not in grouped[key]:
+            grouped[key].append(label)
+    return grouped
 
 
 def kg_orphans() -> list[str]:

@@ -1,4 +1,4 @@
-from typing import Protocol, TypeVar
+from typing import NamedTuple, Protocol, TypeVar
 
 from pydantic import BaseModel
 
@@ -10,6 +10,23 @@ class LLMProviderError(Exception):
 
     The message is safe to log. It must not contain prompts, responses or API keys.
     """
+
+
+class Usage(NamedTuple):
+    """Running totals a provider may report. Fakes and providers without metering report zero."""
+
+    cache_hits: int = 0
+    input_tokens: int = 0
+    output_tokens: int = 0
+
+    def __sub__(self, other: "Usage") -> "Usage":  # type: ignore[override]
+        return Usage(*(a - b for a, b in zip(self, other, strict=True)))
+
+
+def usage_of(provider: object) -> Usage:
+    """The provider's usage totals, or zeros when it does not meter calls."""
+    meter = getattr(provider, "usage", None)
+    return meter() if callable(meter) else Usage()
 
 
 class StructuredLLMProvider(Protocol):

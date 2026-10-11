@@ -21,7 +21,7 @@ from typing import Literal, TypedDict, cast
 
 from langgraph.graph import END, START, StateGraph
 
-from app.integrations.llm.base import LLMProviderError, StructuredLLMProvider
+from app.integrations.llm.base import LLMProviderError, StructuredLLMProvider, Usage, usage_of
 from app.workflows.critic import Verdict
 from app.workflows.schemas import ObligationDraft, RemediationDraft
 from app.workflows.steps import (
@@ -41,7 +41,11 @@ from app.workflows.steps import (
     map_controls,
 )
 
+NO_USAGE = Usage()
+
 CandidateFinder = Callable[[Sequence[ObligationInput], Sequence[ControlInput]], list[CandidateLink]]
+# Turns the mapping judgements into gaps with deterministic rules (no model call).
+GapBuilder = Callable[[Sequence[ObligationInput], Sequence[MappingResult]], list[GapInput]]
 
 
 @dataclass(frozen=True)
@@ -52,6 +56,7 @@ class AgentRun:
     ended_at: datetime
     llm_calls: int
     error: str | None = None
+    usage: Usage = Usage()
 
 
 @dataclass
@@ -59,6 +64,7 @@ class PipelineResult:
     obligations: list[Settled[str, ObligationDraft]] = field(default_factory=list)
     obligation_inputs: list[ObligationInput] = field(default_factory=list)
     mappings: list[MappingResult] = field(default_factory=list)
+    gaps: list[GapInput] = field(default_factory=list)
     remediations: list[Settled[str, RemediationDraft]] = field(default_factory=list)
     runs: list[AgentRun] = field(default_factory=list)
 
@@ -80,6 +86,7 @@ def _record(
     started: datetime,
     calls: int,
     error: str | None,
+    usage: Usage = NO_USAGE,
 ) -> list[AgentRun]:
     run = AgentRun(
         node=node,
@@ -88,6 +95,7 @@ def _record(
         ended_at=datetime.now(UTC),
         llm_calls=calls,
         error=error,
+        usage=usage,
     )
     return [*state.get("runs", []), run]
 
@@ -104,6 +112,7 @@ def _obligation_inputs(settled: Sequence[Settled[str, ObligationDraft]]) -> list
                 clause_ref=draft.clause_ref,
                 topic=draft.topic,
                 text=f"{draft.action} Source: {draft.source_quote}",
+                applicability=draft.applicability,
             )
         )
     return inputs
@@ -113,12 +122,17 @@ def build_pipeline(
     provider: StructuredLLMProvider,
     *,
     candidate_finder: CandidateFinder = keyword_candidates,
+    gap_builder: GapBuilder | None = None,
 ) -> Callable[[PipelineState], PipelineState]:
     """Compiles the graph. The provider and candidate finder are injected, so tests can use fakes
-    and the knowledge-graph finder can replace the keyword finder without changing the graph."""
+    and the knowledge-graph finder can replace the keyword finder without changing the graph.
+
+    With a ``gap_builder``, gaps are derived from this run's mappings; without one, the gaps passed
+    in the initial state are used."""
 
     def extract_node(state: PipelineState) -> PipelineState:
         started = datetime.now(UTC)
+        metered = usage_of(provider)
         clauses = state.get("clauses", [])
         try:
             outcome: ExtractionResult = extract_obligations(provider, clauses)
@@ -126,42 +140,77 @@ def build_pipeline(
             return {
                 "obligations": [],
                 "obligation_inputs": [],
-                "runs": _record(state, "extract_obligations", started, 1, str(exc)),
+                "runs": _record(
+                    state, "extract_obligations", started, 1, str(exc), usage_of(provider) - metered
+                ),
             }
         settled = outcome.obligations
         return {
             "obligations": settled,
             "obligation_inputs": _obligation_inputs(settled),
-            "runs": _record(state, "extract_obligations", started, outcome.llm_calls, None),
+            "runs": _record(
+                state,
+                "extract_obligations",
+                started,
+                outcome.llm_calls,
+                None,
+                usage_of(provider) - metered,
+            ),
         }
 
     def map_node(state: PipelineState) -> PipelineState:
         started = datetime.now(UTC)
+        metered = usage_of(provider)
         obligations = state.get("obligation_inputs", [])
         controls = state.get("controls", [])
         candidates = candidate_finder(obligations, controls)
         try:
             outcome: MappingStepResult = map_controls(provider, obligations, controls, candidates)
         except LLMProviderError as exc:
-            return {"mappings": [], "runs": _record(state, "map_controls", started, 1, str(exc))}
-        return {
+            return {
+                "mappings": [],
+                "runs": _record(
+                    state, "map_controls", started, 1, str(exc), usage_of(provider) - metered
+                ),
+            }
+        update: PipelineState = {
             "mappings": outcome.mappings,
-            "runs": _record(state, "map_controls", started, outcome.llm_calls, None),
+            "runs": _record(
+                state,
+                "map_controls",
+                started,
+                outcome.llm_calls,
+                None,
+                usage_of(provider) - metered,
+            ),
         }
+        if gap_builder is not None:
+            update["gaps"] = gap_builder(obligations, outcome.mappings)
+        return update
 
     def remediation_node(state: PipelineState) -> PipelineState:
         started = datetime.now(UTC)
+        metered = usage_of(provider)
         gaps = state.get("gaps", [])
         try:
             outcome: RemediationStepResult = draft_remediation(provider, gaps)
         except LLMProviderError as exc:
             return {
                 "remediations": [],
-                "runs": _record(state, "draft_remediation", started, 1, str(exc)),
+                "runs": _record(
+                    state, "draft_remediation", started, 1, str(exc), usage_of(provider) - metered
+                ),
             }
         return {
             "remediations": outcome.drafts,
-            "runs": _record(state, "draft_remediation", started, outcome.llm_calls, None),
+            "runs": _record(
+                state,
+                "draft_remediation",
+                started,
+                outcome.llm_calls,
+                None,
+                usage_of(provider) - metered,
+            ),
         }
 
     def after_extract(state: PipelineState) -> str:
@@ -193,9 +242,10 @@ def run_pipeline(
     controls: Sequence[ControlInput],
     gaps: Sequence[GapInput] = (),
     candidate_finder: CandidateFinder = keyword_candidates,
+    gap_builder: GapBuilder | None = None,
 ) -> PipelineResult:
     """Runs the pipeline end to end and returns plain results for the API layer to persist."""
-    graph = build_pipeline(provider, candidate_finder=candidate_finder)
+    graph = build_pipeline(provider, candidate_finder=candidate_finder, gap_builder=gap_builder)
     final = graph(
         PipelineState(
             clauses=list(clauses),
@@ -207,6 +257,7 @@ def run_pipeline(
         obligations=final.get("obligations", []),
         obligation_inputs=final.get("obligation_inputs", []),
         mappings=final.get("mappings", []),
+        gaps=final.get("gaps", []),
         remediations=final.get("remediations", []),
         runs=final.get("runs", []),
     )
