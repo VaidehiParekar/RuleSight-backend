@@ -1,1 +1,1 @@
-"""LLM provider adapters. Only base.py exists; concrete providers (for example Gemini) are planned."""
+"""LLM provider adapters: the protocol in base.py and the Gemini implementation."""
