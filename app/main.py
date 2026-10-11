@@ -26,7 +26,14 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         engine = create_engine_for(settings.database_url.get_secret_value())
         app.state.engine = engine
-        app.state.session_factory = create_session_factory(engine)
+        session_factory = create_session_factory(engine)
+        app.state.session_factory = session_factory
+        try:
+            from app.core.kg import rebuild_kg
+            with session_factory() as session:
+                rebuild_kg(session)
+        except Exception:
+            pass
         try:
             yield
         finally:
